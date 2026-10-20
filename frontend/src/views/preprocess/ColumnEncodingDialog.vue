@@ -248,13 +248,15 @@ function apply(): void {
             **머리글이 있고, 줄은 `원래 값 → 숫자로 바꾼 값`으로 읽힌다** (2026-10-20, 코드 소유자). 번호만
             왼쪽에 있으면 그것이 무엇인지 안 읽힌다 — 이 목록이 보여 주는 것은 값이 **어떤 정수로 인코딩되는가**다.
             낱말은 전처리 미리보기의 두 칸과 같다. 머리글은 상자 맨 위에 붙고, 옮기기 버튼 칸은 폭을
-            고정해 머리글과 줄의 칸이 맞는다.
+            고정해 머리글과 줄의 칸이 맞는다. 화살표는 자기 칸을 갖고 머리는 비운다(코드 소유자).
           -->
           <div
             class="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-surface px-3 py-2 font-bold text-ink-soft"
           >
             <span class="min-w-0 flex-1">{{ t('preprocess.previewValueRaw') }}</span>
-            <span class="w-24 shrink-0 text-right">{{ t('preprocess.previewValueCode') }}</span>
+            <!-- 화살표 칸의 머리는 비운다 — 두 값을 잇는 기호라 이름이 없다. -->
+            <span class="w-6 shrink-0" aria-hidden="true" />
+            <span class="w-24 shrink-0 text-center">{{ t('preprocess.previewValueCode') }}</span>
             <span class="w-24 shrink-0" aria-hidden="true" />
           </div>
           <div :style="{ height: `${listWindow.before}px` }" />
@@ -263,14 +265,16 @@ function apply(): void {
               <span class="min-w-0 flex-1 truncate font-bold text-ink" :title="row.value">
                 {{ row.value }}
               </span>
-              <span class="flex w-24 shrink-0 items-center justify-end gap-2 tabular-nums">
+              <span class="flex w-6 shrink-0 justify-center">
                 <component
                   :is="ACTION_ICONS.encodedAs"
                   :size="16"
                   class="text-ink-faint"
                   aria-hidden="true"
                 />
-                <span class="font-bold text-ink">{{ row.index }}</span>
+              </span>
+              <span class="w-24 shrink-0 text-center font-bold text-ink tabular-nums">
+                {{ row.index }}
               </span>
               <span class="flex w-24 shrink-0 justify-end">
                 <AppButton

@@ -45,6 +45,8 @@ from typing import Any
 import adapter_python
 import numpy as np
 import sklearn
+from sklearn.cluster import KMeans
+from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
@@ -53,9 +55,13 @@ from sklearn.metrics import accuracy_score, confusion_matrix, r2_score, silhouet
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.preprocessing import LabelEncoder, OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import (
+    LabelEncoder,
+    OneHotEncoder,
+    OrdinalEncoder,
+    StandardScaler,
+)
 from sklearn.svm import SVC
-from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.multiclass import unique_labels
 
@@ -730,6 +736,154 @@ def preprocessing_record() -> dict[str, Any]:
     }
 
 
+#: 열마다의 범주형 인코딩(open-decisions.md 116)을 sklearn `ColumnTransformer`와 맞대는 표.
+#
+# **행렬을 sklearn이 스스로 짓는다** — 위 `matrices_for`처럼 우리 규칙을 파이썬으로 옮겨 적지
+# 않는다. 열마다 `OrdinalEncoder(categories=[지정 순서])`·`OneHotEncoder`·`passthrough`·
+# 버림(`remainder='drop'`)을 세우고, 그 행렬로 `LinearRegression`을 푼다. 우리 앱의 전처리기가
+# 같은 설정으로 같은 행렬을 내는지, 그 위의 선형 회귀가 같은 답을 내는지를 `sklearn-parity.spec.ts`가
+# 본다. 처음 보는 값은 sklearn의 `use_encoded_value, -1`·`handle_unknown='ignore'`와 같아야 한다.
+_GRADES = ["하", "중", "상"]
+_REGIONS = ["서울", "부산", "대구", "광주"]
+_REGION_EFFECT = {"서울": 3.0, "부산": -1.0, "대구": 0.5, "광주": -2.5}
+_NOISE = [0.3, -0.2, 0.1, -0.4, 0.25, -0.15, 0.05, -0.3, 0.2, -0.1, 0.35, -0.25]
+
+
+def _encoding_rows() -> list[list[str]]:
+    rows: list[list[str]] = []
+    for i in range(36):
+        grade = _GRADES[i % 3]
+        region = _REGIONS[(i // 3) % 4]
+        hours = 1 + (i * 7) % 9
+        score = (
+            10.0 * _GRADES.index(grade)
+            + _REGION_EFFECT[region]
+            + 2.0 * hours
+            + _NOISE[i % len(_NOISE)]
+        )
+        rows.append([grade, region, str(hours), f"{score:.2f}"])
+    # 시험 몫에만 나오는 값 — 순서 인코딩은 -1, 원-핫은 전부 0이어야 한다.
+    rows.append(["최상", "제주", "5", "40.00"])
+    return rows
+
+
+_ENCODING_ROWS = _encoding_rows()
+_ENCODING_TRAIN = [i for i in range(36) if i % 5 != 0]
+_ENCODING_TEST = [i for i in range(36) if i % 5 == 0] + [36]
+
+COLUMN_ENCODING_CASES: list[dict[str, Any]] = [
+    {
+        # 등급은 지정한 순서(하 < 중 < 상 — 정렬이면 상 < 중 < 하)의 순서 인코딩, 지역은 공통값 원-핫.
+        "name": "ordinal-specified-and-onehot",
+        "preprocessing": {
+            "missing": "drop",
+            "scaling": "none",
+            "categoricalEncoding": "onehot",
+            "columns": {
+                "grade": {"categoricalEncoding": "ordinal", "categories": _GRADES}
+            },
+        },
+    },
+    {
+        # 공통값이 `하지 않음`이고 등급만 순서 인코딩 — 지역은 학습에서 빠진다.
+        "name": "shared-none-with-ordinal-column",
+        "preprocessing": {
+            "missing": "drop",
+            "scaling": "none",
+            "categoricalEncoding": "none",
+            "columns": {
+                "grade": {"categoricalEncoding": "ordinal", "categories": _GRADES}
+            },
+        },
+    },
+    {
+        # 공통값이 순서 인코딩이고 지역만 원-핫. 등급은 순서를 지정하지 않아 정렬이다.
+        "name": "shared-ordinal-sorted-with-onehot-column",
+        "preprocessing": {
+            "missing": "drop",
+            "scaling": "none",
+            "categoricalEncoding": "ordinal",
+            "columns": {"region": {"categoricalEncoding": "onehot"}},
+        },
+    },
+]
+
+
+def _column_transformer(
+    preprocessing: dict[str, Any], features: list[str]
+) -> ColumnTransformer:
+    """설정 한 벌을 sklearn의 열마다 변환기로 옮긴다. 수치 열(`hours`)은 그대로 지나간다."""
+    overrides: dict[str, Any] = preprocessing.get("columns", {})
+    steps: list[tuple[str, Any, list[int]]] = []
+    for position, feature in enumerate(features):
+        # 표가 DataFrame이 아니라 배열이라 열은 이름이 아니라 자리로 가리킨다.
+        where = [position]
+        if feature == "hours":
+            steps.append((feature, "passthrough", where))
+            continue
+        override = overrides.get(feature, {})
+        encoding = override.get(
+            "categoricalEncoding", preprocessing["categoricalEncoding"]
+        )
+        if encoding == "none":
+            continue  # remainder='drop' — 학습에서 빠진다.
+        if encoding == "onehot":
+            steps.append(
+                (
+                    feature,
+                    OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+                    where,
+                )
+            )
+            continue
+        categories = override.get("categories")
+        steps.append(
+            (
+                feature,
+                OrdinalEncoder(
+                    categories=[categories] if categories is not None else "auto",
+                    handle_unknown="use_encoded_value",
+                    unknown_value=-1,
+                ),
+                where,
+            )
+        )
+    return ColumnTransformer(steps, remainder="drop")
+
+
+def column_encoding_record() -> dict[str, Any]:
+    """열마다의 인코딩과 그 위의 선형 회귀. 스펙은 `sklearn-parity.spec.ts`다."""
+    columns = ["grade", "region", "hours", "y"]
+    features = ["grade", "region", "hours"]
+    table = np.array([row[:3] for row in _ENCODING_ROWS], dtype=object)
+    target = np.array([float(row[3]) for row in _ENCODING_ROWS])
+    cases: list[dict[str, Any]] = []
+    for case in COLUMN_ENCODING_CASES:
+        transformer = _column_transformer(case["preprocessing"], features)
+        train_x = transformer.fit_transform(table[_ENCODING_TRAIN]).astype(float)
+        test_x = transformer.transform(table[_ENCODING_TEST]).astype(float)
+        regression = LinearRegression().fit(train_x, target[_ENCODING_TRAIN])
+        cases.append(
+            {
+                **case,
+                "trainMatrix": train_x.tolist(),
+                "testMatrix": test_x.tolist(),
+                "coefficients": regression.coef_.tolist(),
+                "intercept": float(regression.intercept_),
+                "predictions": regression.predict(test_x).tolist(),
+            }
+        )
+    return {
+        "columns": columns,
+        "features": features,
+        "target": "y",
+        "rows": _ENCODING_ROWS,
+        "trainIndices": _ENCODING_TRAIN,
+        "testIndices": _ENCODING_TEST,
+        "cases": cases,
+    }
+
+
 def main() -> int:
     check = "--check" in sys.argv
     document = json.loads(EXPECTED.read_text(encoding="utf-8"))
@@ -753,6 +907,7 @@ def main() -> int:
     for key, fresh_record in (
         ("metrics", metrics_record()),
         ("preprocessing", preprocessing_record()),
+        ("columnEncoding", column_encoding_record()),
     ):
         if check:
             if not close(document.get(key), fresh_record, path=key):

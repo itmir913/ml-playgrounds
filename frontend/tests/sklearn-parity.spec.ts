@@ -26,6 +26,7 @@ import { fit } from '../src/ml/engines/mljs'
 import { evaluate, evaluateCluster } from '../src/ml/metrics'
 import type { LinearModelV2, LinearRegressionModel, NaiveBayesModel } from '../src/ml/models'
 import { fitPreprocessor, targetValues, transform, type Dataset } from '../src/ml/preprocess'
+import type { Preprocessing } from '../src/project/schema'
 
 const FIXTURES = path.join(__dirname, 'fixtures', 'sklearn')
 
@@ -95,10 +96,30 @@ interface R2Case {
   r2: number
 }
 
+/** 열마다의 인코딩 한 벌과 sklearn `ColumnTransformer`가 지은 행렬·선형 회귀 (생성기의 `column_encoding_record`). */
+interface ColumnEncodingCase {
+  name: string
+  preprocessing: Preprocessing
+  trainMatrix: number[][]
+  testMatrix: number[][]
+  coefficients: number[]
+  intercept: number
+  predictions: number[]
+}
+
 const document: {
   sklearnVersion: string
   datasets: Record<string, FixtureEntry>
   metrics: { silhouette: SilhouetteCase[]; r2: R2Case[] }
+  columnEncoding: {
+    columns: string[]
+    features: string[]
+    target: string
+    rows: string[][]
+    trainIndices: number[]
+    testIndices: number[]
+    cases: ColumnEncodingCase[]
+  }
 } = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'expected.json'), 'utf8'))
 
 /**
@@ -635,6 +656,69 @@ describe('sklearn 대조 · 결정계수', () => {
         Math.abs(r2 - one.r2),
         `${one.name}: ours ${r2} vs sklearn ${one.r2}`,
       ).toBeLessThanOrEqual(FIXTURE_ATOL + PARAM_RELATIVE_TOLERANCE * Math.abs(one.r2))
+    })
+  }
+})
+
+/**
+ * **열마다의 범주형 인코딩을 sklearn `ColumnTransformer`와 맞댄다** (open-decisions.md 116, 코드 소유자).
+ * 행렬은 생성기에서 sklearn이 스스로 지었다 — 열마다 `OrdinalEncoder(categories=[지정 순서])`·
+ * `OneHotEncoder`·`passthrough`·버림이고, 처음 보는 값은 `use_encoded_value, -1`·`handle_unknown='ignore'`다.
+ * 우리 앱의 전처리기가 **같은 설정으로 같은 행렬을 내는지**, 그 위의 선형 회귀가 **같은 계수·절편·예측을
+ * 내는지**를 본다. 선형 회귀는 해석해라 엔진의 몫이 남지 않는다 — 어긋나면 전처리가 어긋난 것이다.
+ */
+describe('sklearn 대조 · 열별 인코딩', () => {
+  const fixture = document.columnEncoding
+  const dataset: Dataset = { columns: fixture.columns, rows: fixture.rows }
+
+  it('대조할 설정 셋이 그대로 있다', () => {
+    expect(fixture.cases.map((one) => one.name)).toEqual([
+      'ordinal-specified-and-onehot',
+      'shared-none-with-ordinal-column',
+      'shared-ordinal-sorted-with-onehot-column',
+    ])
+  })
+
+  for (const one of fixture.cases) {
+    describe(one.name, () => {
+      const preprocessor = fitPreprocessor(
+        dataset,
+        fixture.trainIndices,
+        fixture.features,
+        one.preprocessing,
+      )
+      const trainFeatures = transform(preprocessor, dataset, fixture.trainIndices)
+      const testFeatures = transform(preprocessor, dataset, fixture.testIndices)
+
+      it('훈련·시험 행렬이 ColumnTransformer와 같다 - 처음 보는 값까지', () => {
+        expect(trainFeatures).toEqual(one.trainMatrix)
+        expect(testFeatures).toEqual(one.testMatrix)
+        expect(preprocessor.featureNames).toHaveLength(one.trainMatrix[0]?.length ?? -1)
+      })
+
+      it('그 위의 선형 회귀가 계수·절편·예측까지 같다', async () => {
+        const { predict, model } = await fit('linear_regression', {
+          features: trainFeatures,
+          rowIndices: fixture.trainIndices,
+          target: targetValues(dataset, fixture.trainIndices, fixture.target).map(Number),
+          taskType: 'regression',
+          hyperparameters: {},
+          randomState: 0,
+        })
+        const trained = model as LinearRegressionModel
+        expect(trained.coefficients).toHaveLength(one.coefficients.length)
+        one.coefficients.forEach((value, index) => {
+          expect(Math.abs((trained.coefficients[index] ?? Number.NaN) - value)).toBeLessThan(
+            LSTSQ_TOLERANCE,
+          )
+        })
+        expect(Math.abs(trained.intercept - one.intercept)).toBeLessThan(LSTSQ_TOLERANCE)
+        const predictions = predict(testFeatures) as number[]
+        expect(predictions).toHaveLength(one.predictions.length)
+        one.predictions.forEach((value, index) => {
+          expect(Math.abs((predictions[index] ?? Number.NaN) - value)).toBeLessThan(LSTSQ_TOLERANCE)
+        })
+      })
     })
   }
 })
