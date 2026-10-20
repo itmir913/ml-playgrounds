@@ -44,9 +44,10 @@
 frontend/scripts/legacy-mlpx/generate.sh <작업 디렉터리> <태그>...
 ```
 
-**npm 12부터는 `npm_config_allow_remote=root`를 그 명령에만 붙인다** (0.36.0을 지을 때, 코드 소유자가 허락했다).
-npm 12의 기본 `allow-remote=none`이 `package.json`에 URL로 적힌 `xlsx`(SheetJS CDN의 tgz)를 거부해 `npm ci`가
-선다. `root`는 프로젝트의 `package.json`에 직접 적힌 URL만 허용한다 — npm에는 주소 하나만 예외로 두는 설정이 없다.
+**npm 12의 기본 `allow-remote=none`이 `package.json`에 URL로 적힌 `xlsx`(SheetJS CDN의 tgz)를 거부해 `npm ci`가
+선다.** 0.36.0은 그 명령에만 `npm_config_allow_remote=root`를 붙여 지었고(코드 소유자가 허락했다), 그 뒤로
+`frontend/.npmrc`가 `allow-remote=root`를 든다 — 프로젝트의 `package.json`에 직접 적힌 URL만 허용한다(npm에는 주소
+하나만 예외로 두는 설정이 없다). **옛 태그의 트리에는 그 파일이 없다** — 그 태그를 지을 때는 여전히 명령에 붙인다.
 
 태그마다 `git worktree`로 그 태그를 꺼내 그 태그의 `package-lock.json`대로 깔고, 생성기
 (`frontend/scripts/legacy-mlpx/legacy-generate.mjs`)를 그 트리의 `tests/`에 복사해 vitest로 돌린다.

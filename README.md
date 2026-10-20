@@ -51,6 +51,11 @@ Node.js 22.13 or newer, and [uv](https://docs.astral.sh/uv/). The gate also
 checks the Python side, and uv fetches the Python it needs. Run everything from
 `frontend/`, starting with `npm install`.
 
+`frontend/.npmrc` sets `allow-remote=root`. npm 12 refuses dependencies fetched
+from a URL by default, and `xlsx` comes from the SheetJS CDN as a tarball URL.
+`root` allows only the URLs written in our own `package.json` — npm has no
+setting that allows a single host.
+
 | Command         | What it does |
 | --------------- | ------------ |
 | `npm run dev`   | Starts the local server |
