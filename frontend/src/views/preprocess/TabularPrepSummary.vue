@@ -19,6 +19,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { errorMessageKey } from '@/errors'
+import { effectiveOverrideCount, overrideSummaryColumns } from '@/ml/column-override'
 import type { RunPlan } from '@/ml/plan'
 import { usesTarget } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
@@ -43,10 +44,22 @@ const data = computed(() => tabularDataOf(project.file?.document))
 
 const dataset = computed(() => readDataset(project.file))
 
-/** 인코딩을 열마다 덮어쓴 열의 수 (open-decisions.md 116). */
-const overrideCount = computed(() => Object.keys(data.value?.preprocessing.columns ?? {}).length)
-
 const plan = computed(() => props.plan)
+
+/**
+ * 인코딩을 열마다 덮어쓴 열의 수 (open-decisions.md 116). **실제로 걸리는 것만 센다**
+ * (`effectiveOverrideCount`) — 저장된 키를 세면 무시되는 덮어쓰기까지 들어간다. 셀 열은
+ * `overrideSummaryColumns`가 정한다. 계획이 막혀도 줄은 남는다.
+ */
+const overrideCount = computed(() => {
+  const current = data.value
+  if (!current) return 0
+  const preprocessor = plan.value?.ok === true ? plan.value.preprocessor : null
+  return effectiveOverrideCount(
+    current.preprocessing,
+    overrideSummaryColumns(preprocessor, current.features),
+  )
+})
 
 /**
  * 타깃 줄을 그리는가. **판정은 `usesTarget` 하나다** — 열 표가 타깃 칸을 그리는

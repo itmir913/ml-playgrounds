@@ -7,7 +7,12 @@
 
 import type { Preprocessing } from '../project/schema'
 import { listBottomBlockers, listTopBlockers } from '../list-order'
-import { categoryOrder } from './preprocess'
+import {
+  categoryOrder,
+  compareCodePoints,
+  resolveColumnPreprocessing,
+  type Preprocessor,
+} from './preprocess'
 
 /** 열 하나의 덮어쓰기. 스키마의 `columns[열]`과 같은 모양이다. */
 export type ColumnOverride = NonNullable<Preprocessing['columns']>[string]
@@ -42,13 +47,52 @@ export function withColumnOverride(
     ...(encoding === 'inherit' ? {} : { categoricalEncoding: encoding }),
     ...(categories === undefined ? {} : { categories: [...categories] }),
   }
-  const rest = Object.fromEntries(
-    Object.entries(preprocessing.columns ?? {}).filter(([name]) => name !== column),
-  )
-  const columns = Object.keys(next).length === 0 ? rest : { ...rest, [column]: next }
+  const rest = Object.entries(preprocessing.columns ?? {}).filter(([name]) => name !== column)
+  // **키는 이름순이다.** 고친 열을 뒤에 붙이면 같은 값을 다시 저장해도 키 순서만 바뀌고,
+  // 변경 기록(`changedPaths`)이 바뀐 열 없는 "바뀜"을 남긴다. `withColumnOverride`의 스펙이 문다.
+  const entries = Object.keys(next).length === 0 ? rest : [...rest, [column, next] as const]
+  const columns = Object.fromEntries(entries.sort(([a], [b]) => compareCodePoints(a, b))) as Record<
+    string,
+    ColumnOverride
+  >
   const shared: Preprocessing = { ...preprocessing }
   delete shared.columns
   return Object.keys(columns).length === 0 ? shared : { ...shared, columns }
+}
+
+/**
+ * **학습에 실제로 걸리는 덮어쓰기의 수** (요약 카드). 저장된 키를 세지 않는다 — 공통값과 같은
+ * 인코딩, 서수가 아니라 무시되는 순서, 학습에 안 쓰이는 열의 덮어쓰기는 남아 있어도 결과를
+ * 안 바꾼다. `columns`는 학습이 범주로 다루는 열의 이름이다(계획의 전처리기가 안다).
+ */
+export function effectiveOverrideCount(
+  preprocessing: Preprocessing,
+  columns: readonly string[],
+): number {
+  return [...new Set(columns)].filter((column) => {
+    if (overrideOf(preprocessing, column) === undefined) return false
+    const resolved = resolveColumnPreprocessing(preprocessing, column)
+    return (
+      resolved.categoricalEncoding !== preprocessing.categoricalEncoding ||
+      resolved.categories !== undefined
+    )
+  }).length
+}
+
+/**
+ * 요약이 셀 열. **계획이 섰으면 그 전처리기가 범주로 다룬 열**(뺀 열 포함), **막혔으면 고른 특성
+ * 전부**다 — 막힌 원인이 덮어쓰기일 수 있으므로(`FEATURE_CATEGORY_NOT_IN_ORDER`) 그때도 줄이
+ * 사라지면 안 된다. 특성 중 수치 열에 남은 덮어쓰기는 이때만 셀 수 있다.
+ */
+export function overrideSummaryColumns(
+  preprocessor: Preprocessor | null,
+  features: readonly string[],
+): string[] {
+  if (preprocessor === null) return [...features]
+  return [
+    ...preprocessor.columns.filter((column) => column.kind === 'categorical'),
+    ...preprocessor.excludedColumns,
+  ].map((column) => column.name)
 }
 
 /**

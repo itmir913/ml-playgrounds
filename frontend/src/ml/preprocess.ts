@@ -646,7 +646,12 @@ const fittedColumnSchema = z.looseObject({
   kind: z.enum(['numeric', 'categorical']),
   fill: z.union([z.number(), z.string()]).optional(),
   scale: z.looseObject({ center: z.number(), spread: z.number() }).optional(),
-  categories: z.array(z.string()).optional(),
+  // 같은 범주가 두 번이면 `transform`의 위치 맵에서 뒤의 것이 이겨 번호가 조용히 어긋난다.
+  // 설정 쪽 `columnPreprocessingSchema`와 같은 불변식이다.
+  categories: z
+    .array(z.string())
+    .refine((values) => new Set(values).size === values.length, 'duplicate category')
+    .optional(),
   // v2에서 범주 열에 반드시 있다(아래 `parsePreprocessor`가 본다). v1에는 없다.
   encoding: z.enum(CATEGORICAL_ENCODINGS).exclude(['none']).optional(),
   orderSpecified: z.boolean().optional(),

@@ -12,8 +12,10 @@ import { summarizeColumns } from '../src/data/columns'
 import { isClientError } from '../src/errors'
 import {
   dictionaryOrder,
+  effectiveOverrideCount,
   moveCategory,
   overrideOf,
+  overrideSummaryColumns,
   straysOf,
   withColumnOverride,
 } from '../src/ml/column-override'
@@ -233,6 +235,14 @@ describe('옛 mlpx-preprocess-v1 읽기', () => {
     expect(transform(read, DATASET, [2])).toEqual([[2, 50]])
   })
 
+  it('같은 범주가 두 번 적힌 전처리기는 깨진 파일이다 - 번호가 조용히 어긋난다', () => {
+    const doubled = {
+      ...v1,
+      columns: [{ ...v1.columns[0], categories: ['상', '중', '상'] }, v1.columns[1]],
+    }
+    expect(codeOf(() => parsePreprocessor(doubled, 'ordinal'))).toBe('MODEL_FILE_INVALID')
+  })
+
   it('범주 열이 있는데 채울 공통 인코딩이 없으면 깨진 파일이다', () => {
     expect(codeOf(() => parsePreprocessor(v1))).toBe('MODEL_FILE_INVALID')
     expect(codeOf(() => parsePreprocessor(v1, 'none'))).toBe('MODEL_FILE_INVALID')
@@ -300,6 +310,38 @@ describe('덮어쓰기를 고치는 함수', () => {
     })
   })
 
+  it('같은 값을 다시 저장하면 글자까지 같다 - 키 순서가 바뀌면 변경 기록이 헛 "바뀜"을 남긴다', () => {
+    const both = withColumnOverride(MIXED, 'region', 'ordinal', undefined)
+    const again = withColumnOverride(both, 'grade', 'ordinal', ['하', '중', '상'])
+    expect(JSON.stringify(again)).toBe(JSON.stringify(both))
+  })
+
+  it('요약은 학습에 실제로 걸리는 덮어쓰기만 센다', () => {
+    const settings = shared({
+      categoricalEncoding: 'onehot',
+      columns: {
+        grade: { categoricalEncoding: 'ordinal' }, // 걸린다
+        region: { categoricalEncoding: 'onehot' }, // 공통값과 같다
+        city: { categories: ['a', 'b'] }, // 서수가 아니라 순서가 무시된다
+        gone: { categoricalEncoding: 'ordinal' }, // 범주 열이 아니다
+      },
+    })
+    expect(effectiveOverrideCount(settings, ['grade', 'region', 'city'])).toBe(1)
+    expect(
+      effectiveOverrideCount({ ...settings, categoricalEncoding: 'ordinal' }, ['grade', 'city']),
+    ).toBe(1)
+    expect(effectiveOverrideCount(shared(), ['grade'])).toBe(0)
+  })
+
+  it('요약이 셀 열 - 계획이 섰으면 범주 열과 뺀 열, 막혔으면 특성 전부', () => {
+    const none = withColumnOverride(MIXED, 'region', 'none', undefined)
+    const fitted = fitPreprocessor(DATASET, ROWS, FEATURES, none)
+    expect(overrideSummaryColumns(fitted, FEATURES).sort()).toEqual(['grade', 'region'])
+    expect(effectiveOverrideCount(none, overrideSummaryColumns(fitted, FEATURES))).toBe(2)
+    // 막혔을 때(전처리기 없음)도 줄이 남는다 — 막힌 원인이 덮어쓰기일 수 있다.
+    expect(effectiveOverrideCount(none, overrideSummaryColumns(null, FEATURES))).toBe(2)
+  })
+
   it('한 칸 옮기고, 끝을 넘으면 그대로다', () => {
     expect(moveCategory(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b'])
     expect(moveCategory(['a', 'b', 'c'], 0, -1)).toEqual(['a', 'b', 'c'])
@@ -337,6 +379,16 @@ describe('가상 목록의 창', () => {
     const w = virtualWindow({ ...base, scrollTop: 48 * 500 })
     expect([w.start, w.end]).toEqual([490, 520])
     expect(w.before + (w.end - w.start) * 48 + w.after).toBe(10_000 * 48)
+  })
+
+  it('끝을 넘겨 굴렸어도 마지막 화면을 그린다 - 그린 줄이 없으면 높이를 못 재 빠져나오지 못한다', () => {
+    const past = virtualWindow({ ...base, count: 100, rowHeight: 20, scrollTop: 999_999 })
+    expect(past.end).toBe(100)
+    expect(past.start).toBeLessThan(100)
+    expect(
+      virtualWindow({ ...base, count: 100, rowHeight: 0, scrollTop: 1500 }).start,
+    ).toBeLessThan(100)
+    expect(virtualWindow({ ...base, scrollTop: Number.NaN }).start).toBe(0)
   })
 
   it('끝을 넘지 않고, 줄 높이를 아직 못 쟀어도 던지지 않는다', () => {

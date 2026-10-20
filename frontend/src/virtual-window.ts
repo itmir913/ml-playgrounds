@@ -33,8 +33,10 @@ export function virtualWindow(input: {
   if (count === 0) return { start: 0, end: 0, before: 0, after: 0 }
   // 잴 수 없으면(아직 안 그렸다) 첫 줄 높이를 1로 보고 위에서부터 그린다 — 다음 그리기가 바로잡는다.
   const rowHeight = input.rowHeight > 0 ? input.rowHeight : 1
-  const first = Math.floor(Math.max(0, input.scrollTop) / rowHeight)
-  const shown = Math.ceil(Math.max(0, input.viewportHeight) / rowHeight)
+  const shown = Math.ceil(Math.max(0, input.viewportHeight || 0) / rowHeight)
+  // 끝을 넘겨 굴렸어도 마지막 화면은 그린다 — 그린 줄이 없으면 높이를 잴 수 없어 못 빠져나온다.
+  const scrolled = Math.floor(Math.max(0, input.scrollTop || 0) / rowHeight)
+  const first = Math.min(scrolled, Math.max(0, count - Math.max(1, shown)))
   const start = Math.min(count, Math.max(0, first - overscan))
   const end = Math.min(count, Math.max(start, first + shown + overscan))
   return { start, end, before: start * rowHeight, after: (count - end) * rowHeight }
