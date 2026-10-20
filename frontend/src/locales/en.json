@@ -416,6 +416,7 @@
     "robust": "Rescales values using the median and the interquartile range. Outliers affect it less."
   },
   "encodingBasis": {
+    "none": "No encoding → left out of training",
     "onehot": "One-hot encoding → {count} column | One-hot encoding → {count} columns",
     "ordinal": "Ordinal encoding → 0 to {last}"
   },
@@ -486,7 +487,7 @@
       "missingSummary": "Decides what to do with blank cells.",
       "noFeatureChosen": "No feature chosen yet.",
       "noUsableFeature": "No feature goes into training at all.",
-      "notEncodable": "This column holds text, so your current settings leave it out of training. Choose one-hot encoding or ordinal encoding under [Category encoding] to use it in training.",
+      "notEncodable": "This column holds text, so your current settings leave it out of training. Choose one-hot encoding or ordinal encoding under [Category encoding] or with [Change] on this column to use it in training.",
       "roleFeature": "Feature",
       "roleTarget": "Target",
       "rowsUsable": "Of {total} rows, {dropped} are left out in preprocessing, leaving {usable} usable.",

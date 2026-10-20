@@ -105,6 +105,8 @@ const viewport = ref<HTMLElement | null>(null)
 const scrollTop = ref(0)
 const viewportHeight = ref(0)
 const rowHeight = ref(0)
+/** 상자 맨 위에 붙은 머리글의 높이. 줄은 그 아래에서 시작하므로 굴린 자리에서 뺀다. */
+const headerHeight = ref(0)
 
 function measureList(): void {
   const box = viewport.value
@@ -113,14 +115,16 @@ function measureList(): void {
   viewportHeight.value = box.clientHeight
   const row = box.querySelector('li')
   if (row) rowHeight.value = row.getBoundingClientRect().height
+  const header = box.firstElementChild
+  if (header) headerHeight.value = header.getBoundingClientRect().height
 }
 
 const listWindow = computed(() =>
   virtualWindow({
     count: shown.value.length,
     rowHeight: rowHeight.value,
-    scrollTop: scrollTop.value,
-    viewportHeight: viewportHeight.value,
+    scrollTop: Math.max(0, scrollTop.value - headerHeight.value),
+    viewportHeight: Math.max(0, viewportHeight.value - headerHeight.value),
     overscan: CATEGORY_ORDER_OVERSCAN_ROWS,
   }),
 )
@@ -240,31 +244,52 @@ function apply(): void {
           class="mt-3 max-h-96 overflow-y-auto rounded-card border border-line"
           @scroll="measureList"
         >
+          <!--
+            **머리글이 있고, 줄은 `원래 값 → 숫자로 바꾼 값`으로 읽힌다** (2026-10-20, 코드 소유자). 번호만
+            왼쪽에 있으면 그것이 무엇인지 안 읽힌다 — 이 목록이 보여 주는 것은 값이 **어떤 정수로 인코딩되는가**다.
+            낱말은 전처리 미리보기의 두 칸과 같다. 머리글은 상자 맨 위에 붙고, 옮기기 버튼 칸은 폭을
+            고정해 머리글과 줄의 칸이 맞는다.
+          -->
+          <div
+            class="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-surface px-3 py-2 font-bold text-ink-soft"
+          >
+            <span class="min-w-0 flex-1">{{ t('preprocess.previewValueRaw') }}</span>
+            <span class="w-24 shrink-0 text-right">{{ t('preprocess.previewValueCode') }}</span>
+            <span class="w-24 shrink-0" aria-hidden="true" />
+          </div>
           <div :style="{ height: `${listWindow.before}px` }" />
           <ol class="flex flex-col divide-y divide-line">
             <li v-for="row in visible" :key="row.value" class="flex h-12 items-center gap-3 px-3">
-              <span class="w-12 shrink-0 text-right text-ink-soft tabular-nums">{{
-                row.index
-              }}</span>
               <span class="min-w-0 flex-1 truncate font-bold text-ink" :title="row.value">
                 {{ row.value }}
               </span>
-              <AppButton
-                variant="ghost"
-                :label="t('common.moveUp')"
-                :lock="lockFor('listTop', { index: row.index })"
-                @click="move(row.index, -1)"
-              >
-                <component :is="ACTION_ICONS.moveUp" :size="18" aria-hidden="true" />
-              </AppButton>
-              <AppButton
-                variant="ghost"
-                :label="t('common.moveDown')"
-                :lock="lockFor('listBottom', { index: row.index, count: shown.length })"
-                @click="move(row.index, 1)"
-              >
-                <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />
-              </AppButton>
+              <span class="flex w-24 shrink-0 items-center justify-end gap-2 tabular-nums">
+                <component
+                  :is="ACTION_ICONS.encodedAs"
+                  :size="16"
+                  class="text-ink-faint"
+                  aria-hidden="true"
+                />
+                <span class="font-bold text-ink">{{ row.index }}</span>
+              </span>
+              <span class="flex w-24 shrink-0 justify-end">
+                <AppButton
+                  variant="ghost"
+                  :label="t('common.moveUp')"
+                  :lock="lockFor('listTop', { index: row.index })"
+                  @click="move(row.index, -1)"
+                >
+                  <component :is="ACTION_ICONS.moveUp" :size="18" aria-hidden="true" />
+                </AppButton>
+                <AppButton
+                  variant="ghost"
+                  :label="t('common.moveDown')"
+                  :lock="lockFor('listBottom', { index: row.index, count: shown.length })"
+                  @click="move(row.index, 1)"
+                >
+                  <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />
+                </AppButton>
+              </span>
             </li>
           </ol>
           <div :style="{ height: `${listWindow.after}px` }" />

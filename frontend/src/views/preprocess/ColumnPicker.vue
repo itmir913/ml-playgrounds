@@ -70,6 +70,11 @@ const format = useFormat()
  * 채울 것이 없는데 값을 보여주면 그 열에도 빈 칸이 있는 것처럼 읽힌다.
  */
 function effectOf(column: ColumnPlan['columns'][number]): string[] {
+  /**
+   * **인코딩하지 않아 빠진 열도 이 칸이 말한다** (2026-10-20, 코드 소유자). 전처리기에 안 담겨 아래 값이
+   * 없으므로 이 줄이 없으면 칸이 비고, 열마다 `하지 않음`을 고른 열에서 무엇이 정해졌는지 안 보였다.
+   */
+  if (column.featureNote === 'notEncodable') return [t('encodingBasis.none')]
   const fitted = props.fitted?.get(column.summary.name)
   if (!fitted) return []
   const parts: string[] = []
