@@ -29,6 +29,9 @@
  * `FORMAT_VERSION`이 2로 오른 것이 그 첫 사례다 (2026-08-19, mlpx-spec.md §9.1).
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { NEURAL_PARALLEL_CHUNK_ROWS } from '../src/limits'
@@ -177,5 +180,29 @@ describe('버전은 지시 없이 움직이지 않는다', () => {
       (format) => !PINNED_FORMATS.includes(format) && !format.endsWith('-v1'),
     )
     expect(bumped).toEqual([])
+  })
+})
+
+/**
+ * **npm은 개발 기기와 CI가 같은 버전이다** (docs/workflow.md §4). 버전은 `packageManager` 한 자리가 정하고 CI가
+ * 그것을 읽어 깐다 — 어긋나 있던 동안 npm 12의 `allow-remote` 기본값 때문에 이 기기에서만 `npm ci`가 섰다.
+ */
+describe('npm 버전은 packageManager 한 자리다', () => {
+  const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as {
+    packageManager?: string
+  }
+
+  it('정확한 판으로 고정돼 있다 - 올리는 것은 지시가 있을 때다', () => {
+    expect(pkg.packageManager).toBe('npm@12.0.2')
+  })
+
+  it('CI가 npm ci 전에 그 판을 package.json에서 읽어 깐다', () => {
+    const gate = readFileSync(
+      join(process.cwd(), '..', '.github', 'workflows', 'gate.yml'),
+      'utf-8',
+    )
+    const install = gate.indexOf(`require('./package.json').packageManager`)
+    expect(install, 'gate.yml installs the packageManager npm').toBeGreaterThan(-1)
+    expect(install, 'before npm ci').toBeLessThan(gate.indexOf('- run: npm ci'))
   })
 })

@@ -104,6 +104,10 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # npm은 package.json의 `packageManager`가 정한다(docs/workflow.md §4). Node에 딸린 npm을 쓰면 개발
+      # 기기와 갈려 한쪽에서만 넘어진다 — npm 12의 `allow-remote` 기본값이 그랬다.
+      - name: Install the npm in packageManager
+        run: npm install -g "$(node -p "require('./package.json').packageManager")" && npm --version
       - run: npm ci
       # `npm run ci`가 sklearn 픽스처 낡음 검사를 부른다. 없으면 관문이 선다 —
       # 건너뛰게 만들지 않는다(조용한 초록이 그 검사가 막으려는 실패다).
