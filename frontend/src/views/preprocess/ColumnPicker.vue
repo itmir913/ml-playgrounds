@@ -50,7 +50,7 @@ const props = defineProps<{
    * 화면이 틀렸다고 여긴다 — **둘이 같아지면 그때가 데이터 누수다.**
    */
   scaling: Preprocessing['scaling']
-  /** 인코딩을 열마다 덮어쓴 열. 그 열의 [변경]이 굵어 공통값을 따르는 열과 갈린다. */
+  /** 인코딩을 열마다 덮어쓴 열. 그 열의 전처리 칸에 [열별 인코딩]이라고 적는다. */
   overridden: ReadonlySet<string>
 }>()
 
@@ -268,13 +268,19 @@ function onFeature(name: string, event: Event): void {
             <span v-for="part in effectOf(column)" :key="part" class="block">{{ part }}</span>
             <!--
               **범주형 특성 열에만 선다** (open-decisions.md 116). 표에 칸을 더하지 않고 이 칸에서 창을
-              연다 — 인코딩은 이 칸이 이미 말하는 것이다. 덮어쓴 열은 글자가 굵어 공통값과 갈린다.
+              연다 — 인코딩은 이 칸이 이미 말하는 것이다. 덮어쓴 열은 말로 표시한다 — 굵기로 가르려
+              했더니 버튼이 원래 굵어서 모든 열이 같아 보였다(2026-10-20 브라우저 실측).
             -->
+            <span
+              v-if="props.overridden.has(column.summary.name)"
+              class="block font-bold text-brand"
+            >
+              {{ t('preprocess.tabular.columnOverrides') }}
+            </span>
             <AppButton
               v-if="column.role === 'feature' && column.summary.kind === 'categorical'"
               class="mt-1"
               variant="secondary"
-              :class="props.overridden.has(column.summary.name) ? 'font-bold' : ''"
               @click="emit('editEncoding', column.summary.name)"
             >
               {{ t('preprocess.tabular.changeEncoding') }}

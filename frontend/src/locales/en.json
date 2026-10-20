@@ -463,7 +463,8 @@
       "orderLead": "Numbers 0, 1, 2 … are given from the top. Move the values with the arrows to set an order, and the model learns that the values have a size order, as with high, middle and low.",
       "fillAscending": "Dictionary order",
       "fillDescending": "Reverse dictionary order",
-      "strays": "Some values are not in the order you set, so training cannot start as it is. Clear the order to train with the sorted order. ({values})",
+      "strays": "{count} value is not in the order you set, so training cannot start as it is. Refill it with [Dictionary order] or clear the order. ({values}) | {count} values are not in the order you set, so training cannot start as it is. Refill it with [Dictionary order] or clear the order. ({values})",
+      "strayValuesMore": "{values} and {rest} more",
       "apply": "Apply"
     },
     "tabular": {
@@ -758,7 +759,7 @@
     "PREDICTION_INPUT_INCOMPLETE": "Some boxes are still empty. ({feature})",
     "PREDICTION_INPUT_NOT_NUMBER": "Some values are not numbers. ({feature})",
     "FEATURE_VALUE_TOO_LARGE": "The values in this feature are too large to calculate with. Use a smaller unit in the original file, or clear this feature in the preprocessing step. ({feature})",
-    "FEATURE_CATEGORY_NOT_IN_ORDER": "The training data has a value that is not in the category order you set for this feature. Add the value to the order in the preprocessing step, or press [Clear order]. ({feature}: {value})",
+    "FEATURE_CATEGORY_NOT_IN_ORDER": "The training data has a value that is not in the category order you set for this feature. In the preprocessing step, press [Change] for this feature, then refill the order with [Dictionary order] or press [Clear order]. ({feature}: {value})",
     "SVM_NOT_CONVERGED": "The decision boundary was not fully adjusted within the maximum number of iterations. The scores are real, but the model has not converged yet. Choose a method under [Scaling] in the preprocessing step, or lower [Inverse of regularization strength (C)], and the boundary is easier to find.",
     "LOGISTIC_NOT_CONVERGED": "The best fit was not reached within the maximum number of iterations. The scores are real, but the model has not converged yet. Choose a method under [Scaling] in the preprocessing step and it converges in far fewer iterations. If the same notice appears, raise [Maximum iterations (maxIter)] in the training step.",
     "NEURAL_NOT_CONVERGED": "All the epochs ran, but the model has not converged yet. The scores are real, but the model is not fully trained. The loss curve on the results screen shows whether the loss was still going down. To raise the scores, try choosing a method under [Scaling] in the preprocessing step.",

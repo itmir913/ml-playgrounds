@@ -18,6 +18,7 @@ import { own, withoutKey } from '../records'
 import { MIN_SPLIT_ROWS } from '../limits'
 import {
   dataSettings,
+  preprocessingSchema,
   type Preprocessing,
   type ProjectDocument,
   type Settings,
@@ -115,6 +116,25 @@ export function withPreprocessing(
     { preprocessing: { ...dataSettings('tabular', document.settings).preprocessing, ...patch } },
     now,
   )
+}
+
+/**
+ * 전처리를 **통째로** 바꾼다. 열마다의 덮어쓰기를 지울 때 쓴다 — `withPreprocessing`의 덧씌우기로
+ * `columns`를 빼면 `columns: undefined`라는 키가 남아 IndexedDB(structured clone)에 그대로 실린다
+ * (open-decisions.md 116 구현 감사 C-2). 지운 것은 키째 없어야 v4 파일과 같은 모양이다.
+ */
+export function withPreprocessingReplaced(
+  document: ProjectDocument,
+  preprocessing: Preprocessing,
+  now: string,
+): ProjectDocument {
+  // **스키마가 못 읽을 전처리면 지금 것을 지킨다** (`withRandomState`와 같은 이유). 같은 범주가 두 번
+  // 적힌 순서 하나가 **파일을 못 열게 만든다**(`columnPreprocessingSchema`). 화면은 그런 순서를 못
+  // 만들지만, 이 문이 그것을 믿지 않는다 — `settings.spec.ts`의 *"어떤 문도 안 열리는 문서를 못 만든다"*.
+  const kept = preprocessingSchema.safeParse(preprocessing).success
+    ? preprocessing
+    : dataSettings('tabular', document.settings).preprocessing
+  return withTabularData(document, { preprocessing: kept }, now)
 }
 
 /**

@@ -169,7 +169,7 @@ function onPaste(event: ClipboardEvent): void {
           <AppButton
             variant="ghost"
             :label="t('common.moveUp')"
-            :lock="lockFor('sectionTop', { index: props.index })"
+            :lock="lockFor('listTop', { index: props.index })"
             @click="emit('move', -1)"
           >
             <component :is="ACTION_ICONS.moveUp" :size="18" aria-hidden="true" />
@@ -177,7 +177,7 @@ function onPaste(event: ClipboardEvent): void {
           <AppButton
             variant="ghost"
             :label="t('common.moveDown')"
-            :lock="lockFor('sectionBottom', { index: props.index, count: props.count })"
+            :lock="lockFor('listBottom', { index: props.index, count: props.count })"
             @click="emit('move', 1)"
           >
             <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />

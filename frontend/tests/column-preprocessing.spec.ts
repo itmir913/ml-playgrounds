@@ -14,6 +14,7 @@ import {
   dictionaryOrder,
   moveCategory,
   overrideOf,
+  straysOf,
   withColumnOverride,
 } from '../src/ml/column-override'
 import { inputVector } from '../src/ml/predict'
@@ -303,6 +304,15 @@ describe('덮어쓰기를 고치는 함수', () => {
     expect(moveCategory(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b'])
     expect(moveCategory(['a', 'b', 'c'], 0, -1)).toEqual(['a', 'b', 'c'])
     expect(moveCategory(['a', 'b', 'c'], 2, 1)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('순서에 없는 값은 앞의 몇 개만 늘어놓고 개수를 센다 - 값이 수천이어도 문단이 커지지 않는다', () => {
+    const values = Array.from({ length: 3000 }, (_v, i) => `v${String(i).padStart(4, '0')}`)
+    expect(straysOf(['v0000'], values, 5)).toEqual({
+      count: 2999,
+      shown: ['v0001', 'v0002', 'v0003', 'v0004', 'v0005'],
+    })
+    expect(straysOf(undefined, values, 5)).toEqual({ count: 0, shown: [] })
   })
 
   it('사전순은 지정하지 않았을 때의 정렬과 같고, 역순은 그 뒤집기다', () => {

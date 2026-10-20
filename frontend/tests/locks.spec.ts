@@ -287,8 +287,8 @@ const CASES: {
   },
   pageFirst: { locked: { page: 0 }, open: { page: 1 } },
   pageLast: { locked: { page: 2, pages: 3 }, open: { page: 1, pages: 3 } },
-  sectionTop: { locked: { index: 0 }, open: { index: 1 } },
-  sectionBottom: { locked: { index: 2, count: 3 }, open: { index: 1, count: 3 } },
+  listTop: { locked: { index: 0 }, open: { index: 1 } },
+  listBottom: { locked: { index: 2, count: 3 }, open: { index: 1, count: 3 } },
 }
 
 describe('칸마다 판정이 서 있다', () => {
@@ -385,8 +385,8 @@ describe('순서 옮기기는 잠금과 같은 판정으로 멈춘다', () => {
       const before = withSections(count)
       for (let index = 0; index < count; index += 1) {
         const id = `s${index}`
-        const up = refusalFor('sectionTop', { index })
-        const down = refusalFor('sectionBottom', { index, count })
+        const up = refusalFor('listTop', { index })
+        const down = refusalFor('listBottom', { index, count })
         const movedUp = withSectionMoved(before, id, -1)
         const movedDown = withSectionMoved(before, id, 1)
         const where = `${index} of ${count}`

@@ -1083,6 +1083,15 @@ export const CATEGORY_BAR_LIMIT = 30
 export const CATEGORY_ORDER_OVERSCAN_ROWS = 10
 
 /**
+ * 범주 순서 창이 "지정한 순서에 없는 값"으로 늘어놓는 값의 수 (open-decisions.md 116). 나머지는 개수로
+ * 말한다 — 값 종류가 수천인 열에서 전부 이어 붙이면 문단 하나가 목록을 다 그리는 것과 같은 비용이 된다
+ * (구현 감사 B-2). 학생이 알아야 할 것은 *"없는 값이 있다"*와 몇 개인지이고, 몇 개만 봐도 짐작이 선다.
+ *
+ * **분류: 상한이 아니다.**
+ */
+export const STRAY_VALUE_PREVIEW_COUNT = 5
+
+/**
  * 데이터 화면의 산점도에 **그리는 점의 묶음** (`open-decisions.md` "94. 그림이 드문 것을
  * 숨기는가").
  *

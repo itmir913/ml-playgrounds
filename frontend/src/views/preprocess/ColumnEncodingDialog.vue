@@ -20,12 +20,13 @@ import { useI18n } from 'vue-i18n'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import { ACTION_ICONS } from '@/icons'
-import { CATEGORY_ORDER_OVERSCAN_ROWS } from '@/limits'
+import { CATEGORY_ORDER_OVERSCAN_ROWS, STRAY_VALUE_PREVIEW_COUNT } from '@/limits'
 import { lockFor } from '@/locks'
 import {
   dictionaryOrder,
   moveCategory,
   overrideOf,
+  straysOf,
   withColumnOverride,
   type EncodingChoice,
 } from '@/ml/column-override'
@@ -75,12 +76,16 @@ const sorted = computed(() => categoryOrder(props.values))
 /** 보이는 순서. 지정했으면 그 순서, 아니면 정렬이다. */
 const shown = computed(() => categories.value ?? sorted.value)
 
-/** 데이터에 있는데 지정한 순서에 없는 값. 있으면 학습이 거절한다(`FEATURE_CATEGORY_NOT_IN_ORDER`). */
-const strays = computed(() => {
-  const order = categories.value
-  if (order === undefined) return []
-  const known = new Set(order)
-  return sorted.value.filter((value) => !known.has(value))
+/** 데이터에 있는데 지정한 순서에 없는 값. 앞의 몇 개만 늘어놓고 나머지는 개수로 말한다. */
+const strays = computed(() => straysOf(categories.value, props.values, STRAY_VALUE_PREVIEW_COUNT))
+
+const strayText = computed(() => {
+  const { count, shown: values } = strays.value
+  const listed = values.join(', ')
+  const rest = count - values.length
+  return rest > 0
+    ? t('preprocess.columnEncoding.strayValuesMore', { values: listed, rest })
+    : listed
 })
 
 /**
@@ -218,8 +223,12 @@ function apply(): void {
             {{ t('preprocess.columnEncoding.clearOrder') }}
           </AppButton>
         </div>
-        <p v-if="strays.length > 0" class="mt-1 text-danger">
-          {{ t('preprocess.columnEncoding.strays', { values: strays.join(', ') }) }}
+        <p v-if="strays.count > 0" class="mt-1 text-danger">
+          {{
+            t('preprocess.columnEncoding.strays', strays.count, {
+              named: { count: strays.count, values: strayText },
+            })
+          }}
         </p>
 
         <!--
@@ -243,7 +252,7 @@ function apply(): void {
               <AppButton
                 variant="ghost"
                 :label="t('common.moveUp')"
-                :lock="lockFor('sectionTop', { index: row.index })"
+                :lock="lockFor('listTop', { index: row.index })"
                 @click="move(row.index, -1)"
               >
                 <component :is="ACTION_ICONS.moveUp" :size="18" aria-hidden="true" />
@@ -251,7 +260,7 @@ function apply(): void {
               <AppButton
                 variant="ghost"
                 :label="t('common.moveDown')"
-                :lock="lockFor('sectionBottom', { index: row.index, count: shown.length })"
+                :lock="lockFor('listBottom', { index: row.index, count: shown.length })"
                 @click="move(row.index, 1)"
               >
                 <component :is="ACTION_ICONS.moveDown" :size="18" aria-hidden="true" />

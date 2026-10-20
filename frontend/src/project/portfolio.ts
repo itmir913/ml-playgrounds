@@ -9,6 +9,7 @@
  * `.md` 머리글의 라벨은 부르는 쪽이 만들어 넘긴다 (§8.6).
  */
 
+import { listBottomBlockers, listTopBlockers } from '../list-order'
 import { CANONICAL_FORMAT_IDS, CANONICAL_FORMATS } from '../data/image/formats'
 import { own } from '../records'
 import { DIR } from './format'
@@ -201,26 +202,8 @@ export function withSectionRemoved(portfolio: Portfolio, id: string): Portfolio 
 }
 
 /**
- * 순서 옮기기의 맨 위. **잠금과 옮기기가 이 함수 하나를 본다** — 등록부의 `sectionTop`(`locks.ts`)과
- * `withSectionMoved`가 함께 부른다(#31, `architecture.md` §10.7). 모델 층은 등록부를 들이지 않으므로
- * 판정이 여기 있고 등록부가 이것을 부른다. `locks.spec.ts`의 *"순서 옮기기는 잠금과 같은 판정으로
- * 멈춘다"*가 문다.
- */
-export function sectionTopBlockers(input: { readonly index: number }): readonly 'TOP'[] {
-  return input.index <= 0 ? ['TOP'] : []
-}
-
-/** 순서 옮기기의 맨 아래. `sectionTopBlockers`와 같은 까닭으로 여기 있다(등록부의 `sectionBottom`). */
-export function sectionBottomBlockers(input: {
-  readonly index: number
-  readonly count: number
-}): readonly 'BOTTOM'[] {
-  return input.index >= input.count - 1 ? ['BOTTOM'] : []
-}
-
-/**
  * 문항을 한 칸 옮긴다. 끝에서 더 가면 아무 일도 안 일어난다 — 그 끝은 **잠금과 같은 판정**
- * (`sectionTopBlockers`·`sectionBottomBlockers`)이 정한다. 한 칸만 받는다: 판정이 한 칸의 끝을
+ * (`list-order.ts`의 `listTopBlockers`·`listBottomBlockers`)이 정한다. 한 칸만 받는다: 판정이 한 칸의 끝을
  * 말하므로 여러 칸을 받으면 판정 밖의 범위 검사가 다시 필요해진다.
  */
 export function withSectionMoved(portfolio: Portfolio, id: string, step: -1 | 1): Portfolio {
@@ -229,8 +212,8 @@ export function withSectionMoved(portfolio: Portfolio, id: string, step: -1 | 1)
   if (from === -1) return portfolio
   const refused =
     step < 0
-      ? sectionTopBlockers({ index: from })
-      : sectionBottomBlockers({ index: from, count: sections.length })
+      ? listTopBlockers({ index: from })
+      : listBottomBlockers({ index: from, count: sections.length })
   if (refused.length > 0) return portfolio
   const to = from + step
   const [moved] = sections.splice(from, 1)

@@ -67,6 +67,7 @@ import {
 import {
   withFeatures,
   withPreprocessing,
+  withPreprocessingReplaced,
   withSampling,
   withSplit,
   withTarget,
@@ -289,7 +290,8 @@ const overriddenColumns = computed(
 
 function applyEncoding(next: Preprocessing): void {
   encodingColumn.value = null
-  setCleaning({ columns: next.columns })
+  const file = project.file
+  if (file) apply(withPreprocessingReplaced(file.document, next, now()))
 }
 
 /**

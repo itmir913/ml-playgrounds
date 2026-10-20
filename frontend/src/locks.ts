@@ -52,6 +52,7 @@ import { categoryFolderKey, isValidCategoryName } from '@/data/image/canonical'
 import { renameCollidesWithTest } from '@/data/image/test-set'
 import { isBlank, type Sketch } from '@/data/image/sketch'
 import { isBinCount } from '@/data/stats'
+import { listBottomBlockers, listTopBlockers } from '@/list-order'
 import { comparingBlockers, reproduceBlockers, type ReproduceSubject } from '@/ml/reproduce-gate'
 import {
   chosenModelBlocks,
@@ -68,7 +69,6 @@ import {
   type StratifyInput,
   type StratifySplit,
 } from '@/ml/selection'
-import { sectionBottomBlockers, sectionTopBlockers } from '@/project/portfolio'
 import type { TaskType } from '@/project/schema'
 import { stepBlockers, type ProjectFacts, type StepId } from '@/router/steps'
 import type { DataType } from '@/project/schema'
@@ -622,13 +622,13 @@ const GATES = {
   pageLast: (input: { readonly page: number; readonly pages: number }) =>
     input.page >= input.pages - 1 ? (['LAST_PAGE'] as const) : [],
   /**
-   * 순서 옮기기의 맨 위 (끝에 닿음). 판정은 모델 층에 있고 옮기기(`withSectionMoved`)도 같은 함수를
-   * 부른다(#31) — `locks.spec.ts`의 *"순서 옮기기는 잠금과 같은 판정으로 멈춘다"*.
+   * 목록의 순서 옮기기의 맨 위 (끝에 닿음). 포트폴리오 문항과 범주 순서가 함께 쓴다 — 판정과 옮기기가
+   * 같은 함수를 부른다(`list-order.ts`, #31) — `locks.spec.ts`의 *"순서 옮기기는 잠금과 같은 판정으로 멈춘다"*.
    */
-  sectionTop: (input: { readonly index: number }) => sectionTopBlockers(input),
-  /** 순서 옮기기의 맨 아래 (끝에 닿음). 맨 위와 같은 까닭으로 모델 층의 판정을 부른다. */
-  sectionBottom: (input: { readonly index: number; readonly count: number }) =>
-    sectionBottomBlockers(input),
+  listTop: (input: { readonly index: number }) => listTopBlockers(input),
+  /** 목록의 순서 옮기기의 맨 아래 (끝에 닿음). 맨 위와 같은 까닭이다. */
+  listBottom: (input: { readonly index: number; readonly count: number }) =>
+    listBottomBlockers(input),
 } as const satisfies Readonly<Record<string, (input: never) => readonly string[]>>
 
 /** 층화 판정을 이유 목록으로. **뽑기만 층화하는 경우는 잠그지 않는다** (`stratifyLocked`). */

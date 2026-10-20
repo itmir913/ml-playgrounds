@@ -6,6 +6,7 @@
  */
 
 import type { Preprocessing } from '../project/schema'
+import { listBottomBlockers, listTopBlockers } from '../list-order'
 import { categoryOrder } from './preprocess'
 
 /** 열 하나의 덮어쓰기. 스키마의 `columns[열]`과 같은 모양이다. */
@@ -50,10 +51,31 @@ export function withColumnOverride(
   return Object.keys(columns).length === 0 ? shared : { ...shared, columns }
 }
 
+/**
+ * 데이터에 있는데 지정한 순서에 없는 값. 있으면 학습이 거절한다(`FEATURE_CATEGORY_NOT_IN_ORDER`).
+ * 화면은 앞의 `limit`개만 늘어놓고 나머지는 개수로 말한다(`STRAY_VALUE_PREVIEW_COUNT`).
+ */
+export function straysOf(
+  order: readonly string[] | undefined,
+  values: readonly string[],
+  limit: number,
+): { readonly count: number; readonly shown: readonly string[] } {
+  if (order === undefined) return { count: 0, shown: [] }
+  const known = new Set(order)
+  const strays = categoryOrder(values).filter((value) => !known.has(value))
+  return { count: strays.length, shown: strays.slice(0, limit) }
+}
+
 /** 순서에서 한 칸 옮긴다. 끝을 넘으면 그대로다 — 버튼이 잠겨 있어 정상 경로에서는 안 온다. */
 export function moveCategory(order: readonly string[], index: number, delta: -1 | 1): string[] {
+  // 잠금과 같은 판정으로 멈춘다(`list-order.ts`) — 화면의 ↑↓가 잠긴 자리에서 옮기기도 멈춘다.
+  const blocked =
+    index < 0 ||
+    index >= order.length ||
+    (delta < 0 ? listTopBlockers({ index }) : listBottomBlockers({ index, count: order.length }))
+      .length > 0
+  if (blocked) return [...order]
   const to = index + delta
-  if (index < 0 || index >= order.length || to < 0 || to >= order.length) return [...order]
   const next = [...order]
   const [moved] = next.splice(index, 1)
   if (moved !== undefined) next.splice(to, 0, moved)

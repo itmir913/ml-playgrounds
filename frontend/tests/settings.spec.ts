@@ -20,6 +20,7 @@ import {
   withFeatures,
   withHyperparameter,
   withPreprocessing,
+  withPreprocessingReplaced,
   withRuntime,
   withSelectedAlgorithms,
   withRandomState,
@@ -305,6 +306,19 @@ describe('어떤 문도 안 열리는 문서를 못 만든다', () => {
       () => withFeatures(base(), ['같은열', '같은열'], NOW),
     ],
     withPreprocessing: [() => withPreprocessing(base(), {}, NOW)],
+    withPreprocessingReplaced: [
+      () =>
+        withPreprocessingReplaced(
+          base(),
+          {
+            missing: 'drop',
+            scaling: 'none',
+            categoricalEncoding: 'onehot',
+            columns: { x: { categoricalEncoding: 'ordinal', categories: ['a', 'a'] } },
+          },
+          NOW,
+        ),
+    ],
     withSplit: [
       () => withSplit(base(), { testSize: 0 }, NOW),
       () => withSplit(base(), { testSize: 1 }, NOW),
