@@ -17,6 +17,8 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
@@ -90,6 +92,7 @@ import ImageSourceMenu from '@/views/data/ImageSourceMenu.vue'
 const SketchDialog = defineAsyncComponent(() => import('@/views/data/SketchDialog.vue'))
 
 const { t } = useI18n()
+const format = useFormat()
 
 /** 압축 파일 이름을 되살릴 때 쓰는 언어 (`data/zip-names.ts`). */
 const uiLocale = useUiLocale()
@@ -1031,7 +1034,9 @@ const showPages = computed(() => totalPages.value > 1 && !filteredOut.value)
       >
         {{ t('common.prevPage') }}
       </AppButton>
-      <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
+      <p class="tabular-nums text-ink-soft">
+        {{ format.count(page + 1) }} / {{ format.count(totalPages) }}
+      </p>
       <AppButton
         variant="secondary"
         :lock="atLastPage"

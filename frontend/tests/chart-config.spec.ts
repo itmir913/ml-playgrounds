@@ -219,12 +219,17 @@ describe('히스토그램과 막대그래프는 다른 그림이다', () => {
     expect(floor).toBeGreaterThan(0)
     expect(floor).toBeLessThan(1)
 
-    const label = log?.ticks?.callback as ((value: number) => string) | undefined
-    expect(label).toBeTypeOf('function')
-    expect(label?.(1)).toBe('1')
-    expect(label?.(50_000)).toBe((50_000).toLocaleString())
+    const callback = log?.ticks?.callback as
+      ((this: { chart: { options: { locale?: string } } }, value: number) => string) | undefined
+    expect(callback).toBeTypeOf('function')
+    // **차트의 언어로 찍는다** (결정 119) — 브라우저 언어(`toLocaleString()`)가 아니다.
+    const label = (locale: string, value: number) =>
+      callback!.call({ chart: { options: { locale } } }, value)
+    expect(label('ko', 1)).toBe('1')
+    expect(label('en', 50_000)).toBe('50,000')
+    expect(label('de', 50_000)).toBe('50.000')
     // 정수가 아닌 눈금은 이름을 안 준다 — 그 줄만 이름 없이 남는다.
-    expect(label?.(0.1)).toBe('')
+    expect(label('ko', 0.1)).toBe('')
   })
 
   /**

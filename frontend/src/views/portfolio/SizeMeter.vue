@@ -16,6 +16,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
 import { BYTES_PER_MB, SIZE_FRACTION_DIGITS } from '@/limits'
 
 const props = defineProps<{
@@ -26,6 +27,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 /**
  * 소수 `SIZE_FRACTION_DIGITS` 자리(`limits.ts`). 0.0MB에서 5.0MB 사이를 말하는 자리라 정수로는 거의 안 움직인다.
@@ -33,11 +35,14 @@ const { t } = useI18n()
  * **넘긴 값은 올린다.** 5.04MB에서 색과 막대는 넘겼다고 하는데 숫자는 `5.0 / 5.0`이라
  * 화면이 스스로와 어긋났다 (V11 R5 C-5). 자릿수를 늘리는 것은 답이 아니다 — 위 주석의
  * 이유가 그대로 살아 있다.
+ *
+ * **글자는 그 언어로 찍고 자리는 고정한다**(`formatMegabytes`의 `fixed`) — `toFixed`는 소수점 기호도 자리 구분도
+ * 언어를 안 탔다(open-decisions.md 119). 올림은 여기서 하고 포맷은 반올림을 더하지 않는다.
  */
 function mb(bytes: number, roundUp = false): string {
   const value = bytes / BYTES_PER_MB
   const scale = 10 ** SIZE_FRACTION_DIGITS
-  return (roundUp ? Math.ceil(value * scale) / scale : value).toFixed(SIZE_FRACTION_DIGITS)
+  return format.megabytes(roundUp ? Math.ceil(value * scale) / scale : value, true)
 }
 
 const over = computed(() => props.used > props.limit)

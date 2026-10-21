@@ -15,6 +15,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import { IMAGE_GRID_PAGE_SIZE } from '@/limits'
@@ -32,6 +34,7 @@ import { dataSnapshot } from '@/project/schema'
 const props = defineProps<{ input: PanelInput }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 /**
  * 사진과 군집 배정.
@@ -174,7 +177,8 @@ function turn(cluster: number, step: -1 | 1, count: number): void {
           {{ t('common.prevPage') }}
         </AppButton>
         <p class="tabular-nums text-ink-soft">
-          {{ pageOf(group.cluster) + 1 }} / {{ totalPagesOf(group.hashes.length) }}
+          {{ format.count(pageOf(group.cluster) + 1) }} /
+          {{ format.count(totalPagesOf(group.hashes.length)) }}
         </p>
         <AppButton
           variant="secondary"

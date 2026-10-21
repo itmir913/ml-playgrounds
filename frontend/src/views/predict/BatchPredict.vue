@@ -729,7 +729,9 @@ defineExpose({
       <!-- 이름은 배지, 값은 plaintext (§8.16). 파일 이름은 그 자체가 값이라 배지가 없다. -->
       <span class="flex items-baseline gap-1.5">
         <AppBadge>{{ t('meta.tabular.rows') }}</AppBadge>
-        <span class="font-bold tabular-nums text-ink">{{ predictDataset?.rows.length ?? 0 }}</span>
+        <span class="font-bold tabular-nums text-ink">{{
+          format.count(predictDataset?.rows.length ?? 0)
+        }}</span>
       </span>
     </div>
 
@@ -819,7 +821,7 @@ defineExpose({
             :key="page * pageSize + rowIndex"
             class="odd:bg-surface even:bg-surface-sunken"
           >
-            <td class="text-ink-faint">{{ page * pageSize + rowIndex + 1 }}</td>
+            <td class="text-ink-faint">{{ format.count(page * pageSize + rowIndex + 1) }}</td>
             <template v-if="showFeatures">
               <td v-for="field in props.fields" :key="field.name">{{ row[field.name] ?? '' }}</td>
             </template>
@@ -861,7 +863,9 @@ defineExpose({
         <AppButton variant="secondary" :lock="atFirstPage" :action="() => turn(-1)">
           {{ t('common.prevPage') }}
         </AppButton>
-        <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
+        <p class="tabular-nums text-ink-soft">
+          {{ format.count(page + 1) }} / {{ format.count(totalPages) }}
+        </p>
         <AppButton variant="secondary" :lock="atLastPage" :action="() => turn(1)">
           {{ t('common.nextPage') }}
         </AppButton>

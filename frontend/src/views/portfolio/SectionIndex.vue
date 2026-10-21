@@ -55,6 +55,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import { ACTION_ICONS } from '@/icons'
 import type { PortfolioSection } from '@/project/portfolio'
 
@@ -69,6 +71,7 @@ const props = defineProps<{
 const emit = defineEmits<{ pick: [id: string] }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 const done = computed(() => props.sections.filter((section) => section.answer.trim() !== '').length)
 
@@ -155,7 +158,7 @@ watch(() => props.active, reveal)
           :aria-current="props.active === section.id ? 'true' : undefined"
           @click="emit('pick', section.id)"
         >
-          <span class="text-ink-faint tabular-nums">{{ index + 1 }}</span>
+          <span class="text-ink-faint tabular-nums">{{ format.count(index + 1) }}</span>
           <span class="flex min-w-0 flex-1 flex-col">
             <span class="truncate" :class="section.answer.trim() === '' ? 'text-ink-faint' : ''">
               {{ section.title }}

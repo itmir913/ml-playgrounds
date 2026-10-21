@@ -182,7 +182,9 @@ function cellText(
           :key="number"
           class="odd:bg-surface even:bg-surface-sunken"
         >
-          <td class="sticky left-0 z-10 bg-inherit text-ink-faint tabular-nums">{{ number }}</td>
+          <td class="sticky left-0 z-10 bg-inherit text-ink-faint tabular-nums">
+            {{ format.count(number) }}
+          </td>
           <template v-for="column in props.preview.columns" :key="column.name">
             <td class="border-l border-line" :class="column.excluded ? 'text-ink-faint' : ''">
               {{ column.before[row] }}

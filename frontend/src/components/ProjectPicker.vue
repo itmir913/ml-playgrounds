@@ -104,7 +104,7 @@ function lockReason(): string | undefined {
       <component :is="ACTION_ICONS.savedProjects" :size="20" aria-hidden="true" />
       {{ t('projects.saved') }}
       <span class="rounded-pill bg-surface px-2 py-0.5 text-base text-ink-soft">
-        {{ summaries.length }}
+        {{ format.count(summaries.length) }}
       </span>
     </AppButton>
 

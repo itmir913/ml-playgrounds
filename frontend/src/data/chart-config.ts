@@ -22,6 +22,7 @@ import {
   toggleLayers,
   type ThinSize,
 } from './scatter-thin'
+import { formatCount } from '@/composables/useFormat'
 import { SCATTER_DENSITY_STEPS } from '@/limits'
 import { CHART_COLORS, INK_ORDER } from '@/palette'
 import { categoryOrder } from '@/ml/preprocess'
@@ -246,9 +247,12 @@ export function barOptions(
                * `precision`은 선형 눈금의 것이라 여기서는 안 듣는다. 정수가 아닌 눈금은
                * 이름을 안 주어 지운다(`''`을 주면 그 줄만 이름 없이 남는다).
                */
-              callback: (value: string | number) => {
+              // 언어는 차트의 것이다 — 비워 두면 브라우저 언어로 찍혔다(`chart-locale.ts`가 채운다).
+              callback: function (value: string | number) {
                 const count = Number(value)
-                return Number.isInteger(count) ? count.toLocaleString() : ''
+                if (!Number.isInteger(count)) return ''
+                const locale = this.chart.options.locale
+                return locale ? formatCount(locale, count) : String(count)
               },
             },
           }

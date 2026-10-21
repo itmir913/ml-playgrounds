@@ -18,6 +18,7 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js'
+import '@/data/chart-locale'
 import { computed } from 'vue'
 import { Line } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'

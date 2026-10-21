@@ -22,6 +22,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import { dataKindFor, stepTextKey } from '@/data/kinds'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -57,6 +59,7 @@ import { useToastStore } from '@/stores/toasts'
 defineProps<{ accept: string }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 /** CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`). 좁히기는 `useUiLocale` 하나다. */
 const uiLocale = useUiLocale()
@@ -378,13 +381,17 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
             <dt>
               <AppBadge>{{ t('meta.tabular.rows') }}</AppBadge>
             </dt>
-            <dd class="font-bold tabular-nums text-ink">{{ saved.dataset.rows.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">
+              {{ format.count(saved.dataset.rows.length) }}
+            </dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
               <AppBadge>{{ t('meta.tabular.columns') }}</AppBadge>
             </dt>
-            <dd class="font-bold tabular-nums text-ink">{{ saved.columns.length }}</dd>
+            <dd class="font-bold tabular-nums text-ink">
+              {{ format.count(saved.columns.length) }}
+            </dd>
           </div>
           <div class="flex items-baseline gap-1.5">
             <dt>
@@ -554,7 +561,9 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
           >
             {{ t('common.prevPage') }}
           </AppButton>
-          <p class="tabular-nums text-ink-soft">{{ savedPage.page + 1 }} / {{ savedPage.pages }}</p>
+          <p class="tabular-nums text-ink-soft">
+            {{ format.count(savedPage.page + 1) }} / {{ format.count(savedPage.pages) }}
+          </p>
           <AppButton
             variant="secondary"
             :lock="lockFor('pageLast', { page: savedPage.page, pages: savedPage.pages })"

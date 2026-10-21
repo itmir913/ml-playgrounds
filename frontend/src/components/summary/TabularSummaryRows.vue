@@ -10,12 +10,15 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import { featuresInUse, usesTarget } from '@/ml/selection'
 import { readDataset } from '@/project/dataset'
 import { tabularDataOf } from '@/project/schema'
 import type { ProjectFile } from '@/project/format'
 
 const { t } = useI18n()
+const format = useFormat()
 const props = defineProps<{ file: ProjectFile }>()
 
 /**
@@ -59,14 +62,14 @@ const featureCount = computed(() => {
 
   <div v-if="dataset" class="flex justify-between gap-4">
     <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.tabular.rows') }}</dt>
-    <dd class="tabular-nums">{{ dataset.rows }}</dd>
+    <dd class="tabular-nums">{{ format.count(dataset.rows) }}</dd>
   </div>
 
   <div v-if="dataset" class="flex justify-between gap-4">
     <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">
       {{ t('meta.tabular.columns') }}
     </dt>
-    <dd class="tabular-nums">{{ dataset.columns }}</dd>
+    <dd class="tabular-nums">{{ format.count(dataset.columns) }}</dd>
   </div>
 
   <div class="flex justify-between gap-4">

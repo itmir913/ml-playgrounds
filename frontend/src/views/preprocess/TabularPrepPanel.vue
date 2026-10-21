@@ -21,6 +21,8 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import TermPopover from '@/components/TermPopover.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
@@ -80,6 +82,7 @@ import TabularPrepSummary from './TabularPrepSummary.vue'
 import TabularPrepPreview from './TabularPrepPreview.vue'
 
 const { t } = useI18n()
+const format = useFormat()
 
 /** CSV 인코딩을 판정할 때 쓰는 언어 (`data/encoding.ts`의 `CODE_PAGE_BY_LOCALE`). 좁히기는 `useUiLocale` 하나다. */
 const uiLocale = useUiLocale()
@@ -974,7 +977,7 @@ const encodingHelp = computed(() =>
                 <span class="flex items-center gap-1.5 text-ink-soft">
                   <span>{{ t('meta.tabular.rows') }}</span>
                   <span class="font-bold tabular-nums text-ink">
-                    {{ testDataset?.rows.length ?? 0 }}
+                    {{ format.count(testDataset?.rows.length ?? 0) }}
                   </span>
                 </span>
                 <AppButton variant="secondary" :lock="testLock" @click="testFileInput?.click()">

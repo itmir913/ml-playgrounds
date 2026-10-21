@@ -48,6 +48,39 @@ export function formatBytes(locale: string, bytes: number): string {
   }).format(value)
 }
 
+/** 로케일마다 한 번만 만든다 — 행마다 `t()`를 부르는 자리가 있어 세는 수는 빈도가 다르다. */
+const COUNT_FORMATS = new Map<string, Intl.NumberFormat>()
+
+/**
+ * **세는 수**(행 수·개수·쪽 번호). 그 언어의 자리 구분 기호를 넣는다 (open-decisions.md "119. 화면의 세는
+ * 수를 어디서 포맷하는가").
+ *
+ * **학생 데이터의 값에는 쓰지 않는다** — 연도 `2001`이 `2,001`이 된다(`formatRawCell`). 문장 안의 세는 수는
+ * 메시지 컴파일러가 이것으로 찍으므로(`src/i18n-numbers.ts`) 호출부는 숫자를 그대로 넘긴다.
+ */
+export function formatCount(locale: string, value: number): string {
+  let format = COUNT_FORMATS.get(locale)
+  if (!format) {
+    format = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+    COUNT_FORMATS.set(locale, format)
+  }
+  return format.format(value)
+}
+
+/**
+ * 메가바이트 수(단위는 문장이 붙인다 — `{used} / {limit}MB`). 소수는 `SIZE_FRACTION_DIGITS`자리까지다.
+ *
+ * **모양이 둘이다.** 문장 안(오류 알림의 `limitMb` 등)은 `50`처럼 군더더기 없이 찍고, 용량 막대(`SizeMeter`)는
+ * 자리를 고정해(`fixed`) 숫자가 바뀔 때 폭이 흔들리지 않게 한다. **반올림이 값을 바꾼다** — 올릴지 내릴지는
+ * 호출부가 정한다(`SizeMeter`의 올림).
+ */
+export function formatMegabytes(locale: string, value: number, fixed = false): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: fixed ? SIZE_FRACTION_DIGITS : 0,
+    maximumFractionDigits: SIZE_FRACTION_DIGITS,
+  }).format(value)
+}
+
 /** 날짜와 시각. 초는 빼고 분까지만 - 학생이 알고 싶은 것은 "언제쯤"이다. */
 export function formatDateTime(locale: string, iso: string): string {
   const at = new Date(iso)
@@ -169,6 +202,8 @@ export function useFormat() {
 
   return {
     bytes: (value: number) => formatBytes(locale.value, value),
+    count: (value: number) => formatCount(locale.value, value),
+    megabytes: (value: number, fixed?: boolean) => formatMegabytes(locale.value, value, fixed),
     dateTime: (iso: string) => formatDateTime(locale.value, iso),
     percent: (ratio: number) => formatPercent(locale.value, ratio),
     prediction: (value: number) => formatPrediction(locale.value, value),

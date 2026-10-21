@@ -9,6 +9,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppPopover from '@/components/AppPopover.vue'
@@ -25,6 +27,7 @@ const props = defineProps<{ input: PanelInput }>()
 const run = computed(() => props.input.run)
 
 const { t } = useI18n()
+const format = useFormat()
 
 /**
  * 행을 연 칸. **연 적이 없으면 다시 예측하지 않는다** — 칸의 행은 저장된 모델로 테스트 데이터를 다시
@@ -182,7 +185,7 @@ function cellsOf(row: number): readonly string[] {
                   :aria-expanded="open"
                   class="w-full rounded-control text-left transition-colors hover:text-ink"
                 >
-                  {{ count }}
+                  {{ format.count(count) }}
                 </button>
               </template>
 
@@ -214,7 +217,7 @@ function cellsOf(row: number): readonly string[] {
                   <dt>
                     <AppBadge>{{ t('results.cellCount') }}</AppBadge>
                   </dt>
-                  <dd class="font-bold tabular-nums text-ink">{{ count }}</dd>
+                  <dd class="font-bold tabular-nums text-ink">{{ format.count(count) }}</dd>
                 </div>
               </dl>
 
@@ -283,7 +286,7 @@ function cellsOf(row: number): readonly string[] {
         </thead>
         <tbody>
           <tr v-for="row in shownRows" :key="row">
-            <td class="tabular-nums">{{ row + 1 }}</td>
+            <td class="tabular-nums">{{ format.count(row + 1) }}</td>
             <td v-for="(cell, at) in cellsOf(row)" :key="at">{{ cell }}</td>
           </tr>
         </tbody>
@@ -308,7 +311,9 @@ function cellsOf(row: number): readonly string[] {
         >
           {{ t('common.prevPage') }}
         </AppButton>
-        <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ pages }}</p>
+        <p class="tabular-nums text-ink-soft">
+          {{ format.count(page + 1) }} / {{ format.count(pages) }}
+        </p>
         <AppButton
           variant="secondary"
           :lock="lockFor('pageLast', { page, pages })"

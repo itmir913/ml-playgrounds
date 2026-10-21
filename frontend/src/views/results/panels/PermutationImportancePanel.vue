@@ -19,6 +19,7 @@ import {
   Tooltip,
   type ChartOptions,
 } from 'chart.js'
+import '@/data/chart-locale'
 import { computed, ref, watch } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'

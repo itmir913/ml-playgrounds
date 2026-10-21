@@ -9,6 +9,7 @@
  */
 
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
+import '@/data/chart-locale'
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'

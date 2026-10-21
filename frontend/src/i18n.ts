@@ -12,6 +12,7 @@
 
 import { createI18n } from 'vue-i18n'
 
+import { numberAwareCompiler } from './i18n-numbers'
 import en from './locales/en.json'
 import ja from './locales/ja.json'
 import ko from './locales/ko.json'
@@ -110,6 +111,8 @@ export const i18n = createI18n({
   fallbackLocale: FALLBACK_LOCALE,
   messages,
   missing: onMissing,
+  // 문장 안의 세는 수를 그 언어로 찍는다 (`i18n-numbers.ts`).
+  messageCompiler: numberAwareCompiler,
 })
 
 function navigatorLanguages(): readonly string[] {

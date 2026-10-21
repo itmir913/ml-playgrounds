@@ -13,6 +13,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import type { ImageSourceContext, PickImages } from '@/data/image/sources'
@@ -69,6 +71,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const format = useFormat()
 
 /**
  * 이 칸 위에 무언가 끌고 있는가. **칸마다 따로 든다** — 판 하나가 들면 어느 칸 위에
@@ -246,7 +249,9 @@ const shown = computed(() =>
       >
         {{ t('common.prevPage') }}
       </AppButton>
-      <p class="tabular-nums text-ink-soft">{{ page + 1 }} / {{ totalPages }}</p>
+      <p class="tabular-nums text-ink-soft">
+        {{ format.count(page + 1) }} / {{ format.count(totalPages) }}
+      </p>
       <AppButton
         variant="secondary"
         :lock="lockFor('pageLast', { page, pages: totalPages })"

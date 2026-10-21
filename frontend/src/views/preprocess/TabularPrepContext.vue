@@ -10,11 +10,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppBadge from '@/components/AppBadge.vue'
 import { readDataset } from '@/project/dataset'
 import { useProjectStore } from '@/stores/project'
 
 const { t } = useI18n()
+const format = useFormat()
 const project = useProjectStore()
 
 /** 정본을 파싱한 표. 바이트가 같으면 다시 파싱하지 않는다 (project/dataset.ts). */
@@ -27,13 +30,13 @@ const dataset = computed(() => readDataset(project.file))
       <dt>
         <AppBadge>{{ t('meta.tabular.rows') }}</AppBadge>
       </dt>
-      <dd class="font-bold tabular-nums text-ink">{{ dataset.rows.length }}</dd>
+      <dd class="font-bold tabular-nums text-ink">{{ format.count(dataset.rows.length) }}</dd>
     </div>
     <div class="flex items-baseline gap-1.5">
       <dt>
         <AppBadge>{{ t('meta.tabular.columns') }}</AppBadge>
       </dt>
-      <dd class="font-bold tabular-nums text-ink">{{ dataset.columns.length }}</dd>
+      <dd class="font-bold tabular-nums text-ink">{{ format.count(dataset.columns.length) }}</dd>
     </div>
   </template>
 </template>

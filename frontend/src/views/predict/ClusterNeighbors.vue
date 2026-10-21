@@ -294,7 +294,7 @@ const neighborhood = computed<Neighborhood | null>(() => {
           <dt>
             <AppBadge>{{ t('results.tabular.clusterSize') }}</AppBadge>
           </dt>
-          <dd class="font-bold tabular-nums">{{ neighborhood.size }}</dd>
+          <dd class="font-bold tabular-nums">{{ format.count(neighborhood.size) }}</dd>
         </div>
         <div
           v-for="mean in neighborhood.means"

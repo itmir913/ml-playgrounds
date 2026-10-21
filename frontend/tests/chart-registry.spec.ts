@@ -112,6 +112,21 @@ describe('그림이 쓰는 눈금이 등록돼 있다', () => {
     expect(missing, 'register the scale this chart can switch on').toEqual([])
   })
 
+  /**
+   * **차트를 등록하는 부품은 언어를 따라간다** (open-decisions.md "119. 화면의 세는 수를 어디서 포맷하는가").
+   * `data/chart-locale.ts`를 안 들이면 그 그림의 눈금은 브라우저 언어로 찍히고, 같은 그림의 툴팁과 어긋난다.
+   */
+  it('차트를 등록하는 부품은 언어를 따라간다', () => {
+    const registrants = all.filter(
+      (path) => path.endsWith('.vue') && /Chart\.register\(/.test(read(path)),
+    )
+    expect(registrants.length, 'chart registrants must be scanned').toBeGreaterThan(0)
+    const missing = registrants.filter(
+      (path) => !/import\s+['"]@\/data\/chart-locale['"]/.test(read(path)),
+    )
+    expect(missing, 'bring in data/chart-locale.ts where Chart.register runs').toEqual([])
+  })
+
   /** **검사기가 실제로 무는지 본다.** 안 그러면 위 검사가 무엇을 읽든 말이 없다. */
   it('검사기가 빠진 등록을 잡는다', () => {
     expect(registeredIn('Chart.register(BarController, LinearScale)')).toEqual([

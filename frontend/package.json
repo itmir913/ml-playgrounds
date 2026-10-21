@@ -38,6 +38,7 @@
     }
   },
   "dependencies": {
+    "@intlify/core-base": "11.4.12",
     "@noble/hashes": "^2.3.0",
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",

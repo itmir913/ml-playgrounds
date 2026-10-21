@@ -14,6 +14,7 @@
  */
 
 import { Chart, Legend, LinearScale, PointElement, ScatterController, Tooltip } from 'chart.js'
+import '@/data/chart-locale'
 import { computed, ref, watch } from 'vue'
 import { Scatter } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'

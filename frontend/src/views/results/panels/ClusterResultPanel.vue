@@ -259,7 +259,7 @@ function cellsOf(row: number): readonly string[] {
               짧은 이름이라 막아도 표가 넓어지지 않는다.
             -->
             <th class="text-left whitespace-nowrap">{{ clusterName(summary.cluster) }}</th>
-            <td class="tabular-nums">{{ summary.size }}</td>
+            <td class="tabular-nums">{{ format.count(summary.size) }}</td>
             <td v-for="(mean, position) in summary.means" :key="position" class="tabular-nums">
               {{ cellText(position, mean) }}
             </td>
@@ -313,7 +313,9 @@ function cellsOf(row: number): readonly string[] {
         >
           {{ t('common.prevPage') }}
         </AppButton>
-        <p class="tabular-nums text-ink-soft">{{ memberPage + 1 }} / {{ memberPages }}</p>
+        <p class="tabular-nums text-ink-soft">
+          {{ format.count(memberPage + 1) }} / {{ format.count(memberPages) }}
+        </p>
         <AppButton
           variant="secondary"
           :lock="lockFor('pageLast', { page: memberPage, pages: memberPages })"
