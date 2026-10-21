@@ -47,7 +47,6 @@ export const COUNT_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'index',
   'kinds',
   'labels',
-  'last',
   'limit',
   'limitClasses',
   'limitColumns',
@@ -85,7 +84,8 @@ export const MEGABYTE_PLACEHOLDERS: ReadonlySet<string> = new Set([
 
 /**
  * **손대지 않는 것.** 학생 데이터의 값(연도 `2001`이 `2,001`이 된다 — `formatRawCell`), 하이퍼파라미터 범위(`min`·`max`·
- * `actual` — 입력 칸에 치는 값과 같은 모양이어야 한다, 코드 소유자), 버전, 픽셀 크기, 이름·경로, 이미 포맷된 통계·시각.
+ * `actual` — 입력 칸에 치는 값과 같은 모양이어야 한다, 코드 소유자), 순서 인코딩의 마지막 코드값(`last` — 인코딩된 데이터에
+ * 실제로 들어가는 값과 같은 모양, 코드 소유자), 버전, 픽셀 크기, 이름·경로, 이미 포맷된 통계·시각.
  */
 export const RAW_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'actual',
@@ -110,6 +110,7 @@ export const RAW_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'format',
   'found',
   'label',
+  'last',
   'loss',
   'max',
   'mean',
@@ -165,7 +166,7 @@ export function placeholderValue(locale: string, key: string, value: unknown): u
 export const numberAwareCompiler: MessageCompiler = (message, context) => {
   const inner = compile(message, context)
   const locale = context.locale
-  const wrapped = (ctx: MessageContext) =>
+  // `locale`·`key`·`source` 같은 속성은 vue-i18n이 **돌려받은 이 함수에** 나중에 붙인다 — 옮길 것이 없다.
+  return (ctx: MessageContext) =>
     inner({ ...ctx, named: (key: string) => placeholderValue(locale, key, ctx.named(key)) })
-  return Object.assign(wrapped, inner)
 }

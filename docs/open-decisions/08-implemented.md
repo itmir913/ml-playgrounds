@@ -4,6 +4,12 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 119. 화면의 세는 수를 어디서 포맷하는가 — **메시지 컴파일러·useFormat·차트 옵션의 세 경계에서, 자리표시자는 닫힌 목록으로 가른다 (2026-10-21, 코드 소유자, #47)**
+**[결정]** 구현을 마쳤다(#47). 경위: `docs/cases/open-decisions.md`의 같은 제목. 문장 안은 `src/i18n-numbers.ts`(감싼 컴파일러와
+자리표시자 등록부), 문장 밖은 `useFormat().count`, 차트는 `data/chart-locale.ts`. 학생 데이터 원본 값과 하이퍼파라미터 범위의 값은
+묶지 않는다. `@intlify/core-base`는 vue-i18n과 같은 판으로 함께 올린다. 무는 검사: `i18n-numbers.spec.ts`·`chart-registry.spec.ts`·
+`ui-rules.spec.ts`.
+
 ### 118. 확정된 데이터 미리보기는 쪽으로 끊어 전체를 보인다 — **확정 전은 앞부분 훑어보기 그대로 (2026-10-21, 코드 소유자, #46)**
 **[결정]** 구현을 마쳤다(#46). 경위와 잰 값: `docs/cases/open-decisions.md`의 같은 제목. 한 쪽 줄 수는 `DATA_PREVIEW_PAGE_SIZE`이고
 훑어보기의 `TABLE_PREVIEW_ROW_COUNT`와 묶지 않는다. 쪽 계산과 안내는 `data/table.ts`(`previewPage`·`pageNote`)가 한다. 안내 "전체

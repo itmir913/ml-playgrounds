@@ -6,6 +6,9 @@
  * 컴파일하는 플러그인이 들어와 컴파일러를 건너뛰는 날에도 초록이다. 기대값은 같은 `Intl`로 만들지 않고 글자로 적는다.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { i18n, setLocale, SUPPORTED_LOCALES } from '../src/i18n'
@@ -59,6 +62,12 @@ describe('문장 안의 세는 수', () => {
     expect(t('errors.FEATURE_NOT_NUMBER', { feature: '연도', value: 2001 })).not.toContain('2,001')
   })
 
+  it('순서 인코딩의 마지막 코드값은 데이터에 들어가는 모양 그대로다', async () => {
+    await setLocale('en')
+    expect(t('encodingBasis.ordinal', { last: 1000 })).toContain('1000')
+    expect(t('encodingBasis.ordinal', { last: 1000 })).not.toContain('1,000')
+  })
+
   it('문자열로 온 값은 이름이 세는 수여도 손대지 않는다', () => {
     expect(placeholderValue('en', 'used', '1.5.2')).toBe('1.5.2')
   })
@@ -71,6 +80,24 @@ describe('문장 안의 세는 수', () => {
 
   it('세는 수 자리에 소수가 오면 검사에서 던진다 - 값을 반올림해 바꾸지 않는다', () => {
     expect(() => placeholderValue('en', 'count', 2.5)).toThrow(/non-integer/)
+  })
+})
+
+/**
+ * **감싼 컴파일러는 vue-i18n이 쓰는 그 `@intlify/core-base`여야 한다.** vue-i18n만 오르면 core-base가 두 벌 깔려
+ * 번들에 둘이 들어가고 타입이 갈린다 — 둘은 함께 올린다(코드 소유자가 정확한 버전으로 더했다, 결정 119).
+ */
+describe('core-base는 vue-i18n과 같은 판이다', () => {
+  it('직접 의존성의 버전이 vue-i18n이 요구하는 버전과 같다', () => {
+    const own = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as {
+      dependencies: Record<string, string>
+    }
+    const vueI18n = JSON.parse(
+      readFileSync(join(process.cwd(), 'node_modules', 'vue-i18n', 'package.json'), 'utf-8'),
+    ) as { dependencies: Record<string, string> }
+    expect(own.dependencies['@intlify/core-base'], 'bump @intlify/core-base with vue-i18n').toBe(
+      vueI18n.dependencies['@intlify/core-base'],
+    )
   })
 })
 
