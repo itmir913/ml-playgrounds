@@ -24,7 +24,8 @@ import { formatCount, formatMegabytes } from './composables/useFormat'
  * **세는 수.** 정수가 오면 그 언어의 자리 구분 기호를 넣는다.
  *
  * `index`는 행 번호도 들어와 10만을 넘는다(`fromDataDone`·`SPLIT_INDEX_OUT_OF_RANGE`). 군집·실험 번호는 작아 결과가 같다.
- * `minutes`·`seconds`(예상 시간)는 1,000을 넘지 않지만 정수라 같은 갈래다. `limit`은 사진 장수이고, 포트폴리오의 `limit`은
+ * `minutes`·`seconds`는 경과 시간(`train.elapsed`)에선 0으로 채운 문자열로 와서 지나가고, 숫자로 오는 것은 `train.engineCost`의
+ * 정수 `seconds` 하나다. `limit`은 사진 장수이고, 포트폴리오의 `limit`은
  * 포맷된 문자열로 와서 손대지 않는다.
  */
 export const COUNT_PLACEHOLDERS: ReadonlySet<string> = new Set([
@@ -86,6 +87,10 @@ export const MEGABYTE_PLACEHOLDERS: ReadonlySet<string> = new Set([
  * **손대지 않는 것.** 학생 데이터의 값(연도 `2001`이 `2,001`이 된다 — `formatRawCell`), 하이퍼파라미터 범위(`min`·`max`·
  * `actual` — 입력 칸에 치는 값과 같은 모양이어야 한다, 코드 소유자), 순서 인코딩의 마지막 코드값(`last` — 인코딩된 데이터에
  * 실제로 들어가는 값과 같은 모양, 코드 소유자), 버전, 픽셀 크기, 이름·경로, 이미 포맷된 통계·시각.
+ *
+ * **이름이 두 얼굴인 것이 둘 있다.** `value`는 원본 데이터 값이지만 예상 시간(`train.estimate.*`, 약 N분)에는 세는 수가 온다 —
+ * 원본 쪽이 우선이라 여기 두고, 예상 시간이 1,000분을 넘는 날에만 `1000`으로 찍힌다. `categories`는 범주 이름 목록이지만
+ * `IMAGE_TOO_FEW_CATEGORIES`에는 0·1뿐인 수가 온다 — 묶어도 같다.
  */
 export const RAW_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'actual',

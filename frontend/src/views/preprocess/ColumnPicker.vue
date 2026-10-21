@@ -267,8 +267,8 @@ function onFeature(name: string, event: Event): void {
             </span>
           </td>
           <td class="whitespace-nowrap">{{ t(`columnKind.${column.summary.kind}`) }}</td>
-          <td class="whitespace-nowrap">{{ column.summary.missing }}</td>
-          <td class="whitespace-nowrap">{{ column.summary.unique }}</td>
+          <td class="whitespace-nowrap">{{ format.count(column.summary.missing) }}</td>
+          <td class="whitespace-nowrap">{{ format.count(column.summary.unique) }}</td>
           <td class="whitespace-nowrap text-ink-soft">
             <span v-for="part in effectOf(column)" :key="part" class="block">{{ part }}</span>
             <!--

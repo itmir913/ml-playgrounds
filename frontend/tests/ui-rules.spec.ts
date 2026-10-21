@@ -336,15 +336,19 @@ const RULES: readonly Rule[] = [
       '**`{{ rows.length }}`는 10만 행에서 `100000`으로 찍힌다** (open-decisions.md 119, #47). 문장 안의 수는 ' +
       '메시지 컴파일러가 그 언어로 찍지만, 문장 밖의 수는 아무도 안 거친다 — 데이터 화면의 행 수·쪽 번호·혼동 ' +
       '행렬의 칸이 그랬다. `format.count(…)`로 감싼다. **함수 호출로 감싼 식은 그 함수가 맡는다**(`rows(…)`는 `t()`를 지난다). ' +
-      '`.length`·`.size`·`+ 1` 모양만 본다 — 다른 이름의 숫자 변수는 못 본다(`rule-coverage.md`).',
+      '`.length`·`.size`·`.missing`·`.unique`·`.support`·`+ 1` 모양만 본다 — 다른 이름의 숫자 변수는 못 본다(`rule-coverage.md`).',
     // 앞보기는 공백 **앞**에 둔다 — 뒤에 두면 `\s*`가 빈 것으로 물러나 공백 하나를 보고 통과시켰다.
     // 식 안에 `t(`가 있으면 글자는 문장이 낸다(조건으로만 쓰인 `.length`).
-    pattern: /\{\{(?!\s*[\w$.]+\()(?![^}]*\bt\()\s*[^}]*(\.length\b|\.size\b|\+\s*1\b)[^}]*\}\}/,
+    // `.missing`·`.unique`·`.support`는 열 요약과 범주별 지표의 행 수다(2026-10-22 감사가 셋을 찾았다).
+    pattern:
+      /\{\{(?!\s*[\w$.]+\()(?![^}]*\bt\()\s*[^}]*(\.length\b|\.size\b|\.missing\b|\.unique\b|\.support\b|\+\s*1\b)[^}]*\}\}/,
     violations: [
       '<dd class="tabular-nums">{{ saved.dataset.rows.length }}</dd>',
       '<p>{{ page + 1 }} / {{ totalPages }}</p>',
       '<dd>{{ neighborhood.size }}</dd>',
       '<td>{{ predictDataset?.rows.length ?? 0 }}</td>',
+      '<td>{{ column.unique }}</td>',
+      '<td>{{ entry.support }}</td>',
     ],
     allowed: [
       '<dd class="tabular-nums">{{ format.count(saved.dataset.rows.length) }}</dd>',

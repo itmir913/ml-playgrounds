@@ -18,6 +18,8 @@
 
 import { useI18n } from 'vue-i18n'
 
+import { useFormat } from '@/composables/useFormat'
+
 import AppTable from '@/components/AppTable.vue'
 import type { ColumnSummary } from '@/data/columns'
 import { ACTION_ICONS } from '@/icons'
@@ -36,6 +38,7 @@ const props = defineProps<{
 const emit = defineEmits<{ visualize: [column: string] }>()
 
 const { t } = useI18n()
+const format = useFormat()
 </script>
 
 <template>
@@ -85,8 +88,8 @@ const { t } = useI18n()
           <template v-else>{{ column.name }}</template>
         </td>
         <td>{{ t(`columnKind.${column.kind}`) }}</td>
-        <td>{{ column.missing }}</td>
-        <td>{{ column.unique }}</td>
+        <td>{{ format.count(column.missing) }}</td>
+        <td>{{ format.count(column.unique) }}</td>
         <td class="text-ink-soft">{{ column.samples.join(', ') }}</td>
       </tr>
     </tbody>

@@ -132,7 +132,7 @@ const weakest = computed(() => weakestPerClass(run.value.perClass ?? []))
           >
             {{ format.percent(entry.f1) }}
           </td>
-          <td>{{ entry.support }}</td>
+          <td>{{ format.count(entry.support) }}</td>
         </tr>
       </tbody>
     </AppTable>
