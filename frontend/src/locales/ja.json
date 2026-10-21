@@ -271,7 +271,7 @@
       "kind": "データ型",
       "missing": "欠損値の数(Missing Value)",
       "noHeaderNote": "列名がないため、A、B、C…と表示します。",
-      "previewNote": "先頭の{count}行だけを表示しています。",
+      "pageNote": "全{total}行中{from}–{to}行を表示しています。",
       "previewProbeNote": "プレビューのために先頭の{count}行だけを読み込みました。[データの概要]の数値もこの行だけを集計したものなので、[このデータを使用]を押してファイル全体を読み込むと変わることがあります。",
       "previewTitle": "データのプレビュー",
       "reading": "読み込み中",

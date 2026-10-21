@@ -271,7 +271,7 @@
       "kind": "Type",
       "missing": "Missing values",
       "noHeaderNote": "There are no column names, so they are called A, B, C and so on.",
-      "previewNote": "Showing the first {count} row. | Showing the first {count} rows.",
+      "pageNote": "Showing rows {from}–{to} of {total} row. | Showing rows {from}–{to} of {total} rows.",
       "previewProbeNote": "Only the first {count} row has been read for the preview. The numbers in [Data summary] count only that row, so they may change once you press [Use this data] and the whole file is loaded. | Only the first {count} rows have been read for the preview. The numbers in [Data summary] count only those rows, so they may change once you press [Use this data] and the whole file is loaded.",
       "previewTitle": "Data preview",
       "reading": "Reading…",

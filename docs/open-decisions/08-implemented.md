@@ -4,6 +4,12 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 118. 확정된 데이터 미리보기는 쪽으로 끊어 전체를 보인다 — **확정 전은 앞부분 훑어보기 그대로 (2026-10-21, 코드 소유자, #46)**
+**[결정]** 구현을 마쳤다(#46). 경위와 잰 값: `docs/cases/open-decisions.md`의 같은 제목. 한 쪽 줄 수는 `DATA_PREVIEW_PAGE_SIZE`이고
+훑어보기의 `TABLE_PREVIEW_ROW_COUNT`와 묶지 않는다. 쪽 계산과 안내는 `data/table.ts`(`previewPage`·`pageNote`)가 한다. 안내 "전체
+M행 중 a–b행"은 한 쪽에 다 들어가면 안 낸다(늘 내는 군집 표와 갈리는 점). 쪽은 확정된 데이터가 바뀔 때만 첫 쪽으로 돌아간다 —
+무는 검사: `tabular-panel-page.spec.ts`.
+
 ### 116. 열마다 다른 범주형 인코딩과 범주 순서를 지정할 수 있어야 하는가 — **있어야 한다. 공통값을 기본으로 두고 필요한 열만 덮어쓴다. 1차는 범주형 인코딩과 순서 인코딩의 범주 순서뿐이다 (2026-10-20, 코드 소유자, #45)**
 **[결정]** 구현을 마쳤다(#45). 경위: `docs/cases/open-decisions.md`의 같은 제목. sklearn `ColumnTransformer` +
 `OrdinalEncoder(categories=...)` 관행이다. 스케일링·결측의 열별 지정과 백엔드는 범위 밖이다.

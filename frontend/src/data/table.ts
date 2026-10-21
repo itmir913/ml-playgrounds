@@ -19,7 +19,7 @@
 import { ClientError } from '../errors'
 import { hashBytes } from '../hash'
 import { maxDatasetColumns, maxDatasetRows } from '../limits-switch'
-import { TABLE_PREVIEW_ROW_COUNT } from '../limits'
+import { DATA_PREVIEW_PAGE_SIZE, TABLE_PREVIEW_ROW_COUNT } from '../limits'
 import { openCsvText } from './csv'
 import { decodeText, detectEncoding, type EncodingLocale, type SourceEncoding } from './encoding'
 import type { TableGrid } from './grid'
@@ -243,18 +243,51 @@ export function importTable(document: TableDocument, sheetName?: string): Import
   return imported
 }
 
+/** 확정된 표의 한 쪽. `start`부터 `end` 앞까지가 그 쪽의 줄이다. */
+export interface PreviewPage {
+  /** 쪽 수 안으로 당긴 쪽 번호(0부터). */
+  page: number
+  /** 쪽 수. **빈 표에서도 1이다** — `0 / 0`은 화면이 고장 난 것처럼 읽힌다. */
+  pages: number
+  start: number
+  end: number
+}
+
 /**
- * 표를 잘라서 보여주고 있으면 **그린 줄 수**, 안 잘랐으면 0.
+ * **확정된** 표의 한 쪽 (open-decisions.md "118. 확정된 데이터 미리보기는 쪽으로 끊어 전체를 보인다").
  *
- * **화면에서 뺀 이유가 규칙이 하나 있기 때문이다.** 상수를 그대로 문구에 넘기면
- * 10줄짜리 파일에도 "처음 20줄만 보여 줍니다"가 떠서 도구가 거짓말을 한다. 그 규칙이
- * 화면 안 `computed`에 있으면 검사가 못 잡는다 (architecture.md §9.1).
+ * **쪽 번호를 쪽 수 안으로 당긴다** — 쪽을 들고 있는 동안 표가 줄어들어도 빈 쪽을 그리지 않는다.
  *
- * @param shown 지금 그린 줄 수
  * @param total 표 전체의 줄 수
+ * @param page 보려는 쪽 번호(0부터)
  */
-export function previewNote(shown: number, total: number): number {
-  return total > shown ? shown : 0
+export function previewPage(
+  total: number,
+  page: number,
+  size: number = DATA_PREVIEW_PAGE_SIZE,
+): PreviewPage {
+  const pages = Math.max(1, Math.ceil(total / size))
+  const clamped = Math.min(Math.max(page, 0), pages - 1)
+  const start = clamped * size
+  return { page: clamped, pages, start, end: Math.min(start + size, total) }
+}
+
+/**
+ * **확정된** 표 아래에 적을 범위. 한 쪽에 다 들어가면 `null`.
+ *
+ * **자른 경우에만 말한다.** 열 줄짜리 표에 "전체 10행 중 1–10행"은 할 말이 없는 문장이다 — 늘 적는
+ * 군집 표와 갈리는 점이다(결정 118). **당김은 `previewPage`가 한다** — 규칙이 한 곳에만 산다.
+ *
+ * **화면에서 뺀 이유가 그 규칙이다.** 화면 안 `computed`에 있으면 검사가 못 잡는다 (architecture.md §9.1).
+ */
+export function pageNote(
+  total: number,
+  page: number,
+  size: number = DATA_PREVIEW_PAGE_SIZE,
+): { total: number; from: number; to: number } | null {
+  const found = previewPage(total, page, size)
+  if (found.pages <= 1) return null
+  return { total, from: found.start + 1, to: found.end }
 }
 
 /**
@@ -269,8 +302,8 @@ export const PREVIEW_PROBE_ROWS = TABLE_PREVIEW_ROW_COUNT + 1
 /**
  * **확정 전** 표 아래에 적을 줄 수. 파일에 더 있으면 지금 그린 줄 수, 아니면 0.
  *
- * `previewNote`와 나누는 이유는 **재는 것이 다르기 때문이다.** 저쪽은 "가진 것 중
- * 얼마를 그렸나"인데, 확정 전에는 **가진 것이 얼마인지 앱도 모른다** — 앞부분만
+ * `pageNote`와 나누는 이유는 **재는 것이 다르기 때문이다.** 저쪽은 "가진 것 중
+ * 어느 범위를 그렸나"인데, 확정 전에는 **가진 것이 얼마인지 앱도 모른다** — 앞부분만
  * 파싱했으므로 전체 행 수라는 값 자체가 없다. 그래서 여기서 보는 것은 총량이 아니라
  * **캡을 넘겨 읽혔는가**다.
  *

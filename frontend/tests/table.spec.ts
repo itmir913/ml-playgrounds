@@ -7,8 +7,9 @@ import { decodeText, detectEncoding } from '../src/data/encoding'
 import {
   importTable,
   openTable,
+  pageNote,
   PREVIEW_PROBE_ROWS,
-  previewNote,
+  previewPage,
   previewTable,
   probeNote,
   sourceFromFileName,
@@ -16,7 +17,12 @@ import {
 import { isClientError } from '../src/errors'
 import { applyLimitsOff } from '../src/limits-switch'
 import { hashBytes } from '../src/hash'
-import { MAX_DATASET_COLUMNS, MAX_DATASET_ROWS, TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
+import {
+  DATA_PREVIEW_PAGE_SIZE,
+  MAX_DATASET_COLUMNS,
+  MAX_DATASET_ROWS,
+  TABLE_PREVIEW_ROW_COUNT,
+} from '../src/limits'
 import { CP932_SAMPLE } from './fixtures/cp932'
 
 /** '이름,나이\n가나다,10'을 CP949로 인코딩한 바이트. */
@@ -490,17 +496,35 @@ describe('importTable - 상한', () => {
  * **화면에서 뺀 판정이다** (V11 R3 감사 C-5). 화면 안 `computed`에 있으면 이 규칙을
  * 검사가 못 잡는데, 어기면 도구가 학생에게 거짓말을 한다.
  */
-describe('앞부분만 보여준다는 안내', () => {
-  it('안 잘랐으면 0이다 - 10줄짜리 파일에 "처음 20줄만"이 뜨면 안 된다', () => {
-    expect(previewNote(10, 10)).toBe(0)
+describe('확정된 표의 쪽 (결정 118)', () => {
+  const size = DATA_PREVIEW_PAGE_SIZE
+
+  it('빈 표도 1쪽이다', () => {
+    expect(previewPage(0, 0)).toEqual({ page: 0, pages: 1, start: 0, end: 0 })
   })
 
-  it('정확히 상한만큼이어도 안 잘린 것이다', () => {
-    expect(previewNote(TABLE_PREVIEW_ROW_COUNT, TABLE_PREVIEW_ROW_COUNT)).toBe(0)
+  it('정확히 한 쪽이면 1쪽이고 안내가 없다', () => {
+    expect(previewPage(size, 0).pages).toBe(1)
+    expect(pageNote(size, 0)).toBeNull()
   })
 
-  it('잘랐으면 그린 줄 수를 준다 - 전체 줄 수가 아니다', () => {
-    expect(previewNote(TABLE_PREVIEW_ROW_COUNT, 5000)).toBe(TABLE_PREVIEW_ROW_COUNT)
+  it('한 줄 넘치면 2쪽이고 둘째 쪽은 그 한 줄이다', () => {
+    expect(previewPage(size + 1, 1)).toEqual({ page: 1, pages: 2, start: size, end: size + 1 })
+    expect(pageNote(size + 1, 1)).toEqual({ total: size + 1, from: size + 1, to: size + 1 })
+  })
+
+  it('첫 쪽의 범위는 1부터 한 쪽분이다', () => {
+    expect(pageNote(5000, 0)).toEqual({ total: 5000, from: 1, to: size })
+  })
+
+  it('범위 밖 쪽은 당긴다 - 안내도 같은 쪽을 가리킨다', () => {
+    expect(previewPage(size * 2 + 3, 9).page).toBe(2)
+    expect(previewPage(size * 2 + 3, -1).page).toBe(0)
+    expect(pageNote(size * 2 + 3, 9)).toEqual({
+      total: size * 2 + 3,
+      from: size * 2 + 1,
+      to: size * 2 + 3,
+    })
   })
 })
 
@@ -508,7 +532,7 @@ describe('앞부분만 보여준다는 안내', () => {
  * **확정 전에는 재는 것이 다르다.** 전체 행 수라는 값이 없으므로(앞부분만 파싱했다)
  * 볼 수 있는 것은 **캡을 넘겨 읽혔는가**뿐이다 (architecture.md §8.9).
  *
- * 한때 화면이 `previewNote`에 **머리글을 뺀 줄 수와 머리글을 포함한 줄 수**를 견주고
+ * 한때 화면이 (지금은 없는) 확정 후 안내 함수에 **머리글을 뺀 줄 수와 머리글을 포함한 줄 수**를 견주고
  * 있었다. 둘은 머리글을 쓰면 언제나 하나 차이라 **모든 파일에서 안내가 떴다** —
  * 다섯 줄짜리 파일이 다섯 줄을 다 보여주면서 "처음 5행만 보여 줍니다"라고 적었다
  * (2026-08-29 전 경로 감사).

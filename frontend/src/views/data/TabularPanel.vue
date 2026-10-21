@@ -19,7 +19,7 @@
  * 되돌릴 것이 없어야 한다.
  */
 
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { dataKindFor, stepTextKey } from '@/data/kinds'
@@ -37,8 +37,9 @@ import { summarizeColumns, toDataset, type ColumnSummary } from '@/data/columns'
 import {
   importTable,
   openTable,
-  previewNote,
+  pageNote,
   PREVIEW_PROBE_ROWS,
+  previewPage,
   previewTable,
   probeNote,
   type TableDocument,
@@ -47,6 +48,7 @@ import { useUiLocale } from '@/composables/useUiLocale'
 import ChartDialog from './ChartDialog.vue'
 import ColumnInspector from './ColumnInspector.vue'
 import { TABLE_PREVIEW_ROW_COUNT } from '@/limits'
+import { lockFor, turnPage } from '@/locks'
 import { applyDataset, needsReplaceConfirm, readDataset, replaceLosses } from '@/project/dataset'
 import { readFileBytes } from '@/project/download'
 import { useProjectStore } from '@/stores/project'
@@ -129,6 +131,27 @@ const saved = computed(() => {
   return { reference, dataset, columns: summarizeColumns(dataset) }
 })
 
+/**
+ * 확정된 표에서 보고 있는 쪽 (open-decisions.md "118. 확정된 데이터 미리보기는 쪽으로 끊어
+ * 전체를 보인다"). 확정 전에는 쓰지 않는다 — 그때는 훑어보기가 이긴다.
+ */
+const page = ref(0)
+
+/**
+ * **확정된 데이터가 바뀔 때만 첫 쪽으로 돌아간다.** 키는 `saved`가 아니라 데이터셋 참조의
+ * 정체다 — `saved`는 저장마다 새 객체라 그것을 보면 자동 저장마다 1쪽으로 튄다. 다른 설정
+ * 저장은 `data.dataset`을 얕게 펼쳐 그대로 둔다. 무는 검사: `tabular-panel-page.spec.ts`.
+ */
+watch(
+  () => project.file?.document.settings.data.dataset,
+  () => {
+    page.value = 0
+  },
+)
+
+/** 확정된 표의 지금 쪽. 쪽 번호의 당김은 `data/table.ts`가 한다. */
+const savedPage = computed(() => previewPage(saved.value?.dataset.rows.length ?? 0, page.value))
+
 /** 지금 화면에 그릴 표. 파일을 고르는 중이면 그쪽이 이긴다. */
 const shown = computed(() => {
   if (opened.value) {
@@ -137,10 +160,11 @@ const shown = computed(() => {
     return { dataset, columns: summarizeColumns(dataset), draft: true }
   }
   if (saved.value) {
-    // 저장된 표는 앞부분만 보여준다. 5천 줄을 DOM에 그리면 교실 PC가 멈춘다.
+    // **DOM에는 한 쪽만 그린다** (결정 118). 5천 줄을 통째로 그리면 교실 PC가 멈춘다.
     const { dataset, columns } = saved.value
+    const { start, end } = savedPage.value
     return {
-      dataset: { columns: dataset.columns, rows: dataset.rows.slice(0, TABLE_PREVIEW_ROW_COUNT) },
+      dataset: { columns: dataset.columns, rows: dataset.rows.slice(start, end) },
       columns,
       draft: false,
     }
@@ -152,20 +176,26 @@ const shown = computed(() => {
  * 표 아래 한 줄. **확정 전과 뒤가 다른 말이다** (architecture.md §8.9).
  *
  * 확정 전에는 앞부분만 파싱했으므로 전체 행 수라는 값이 없다 — 말할 수 있는 것은
- * *여기까지만 읽었고 옆의 숫자는 이것을 센 값이다*뿐이다. 확정 뒤에야 *전체 중 앞
- * N행을 그렸다*가 성립한다.
+ * *여기까지만 읽었고 옆의 숫자는 이것을 센 값이다*뿐이다. 확정 뒤에야 *전체 중 어느
+ * 범위를 그렸다*가 성립한다.
  *
  * **판정은 둘 다 화면 밖이다** (`data/table.ts`). 여기 `computed`에 두면 검사가 못
  * 잡고, 실제로 그래서 한 번 거짓말했다.
  */
-const previewCaption = computed<{ key: string; count: number } | null>(() => {
-  const rows = shown.value?.dataset.rows.length ?? 0
+const previewCaption = computed<{
+  key: string
+  params: Record<string, number>
+  plural: number
+} | null>(() => {
   if (opened.value) {
+    const rows = shown.value?.dataset.rows.length ?? 0
     const count = probeNote(rows, previewRows.value.length)
-    return count === 0 ? null : { key: 'data.tabular.previewProbeNote', count }
+    return count === 0
+      ? null
+      : { key: 'data.tabular.previewProbeNote', params: { count }, plural: count }
   }
-  const count = previewNote(rows, saved.value?.dataset.rows.length ?? 0)
-  return count === 0 ? null : { key: 'data.tabular.previewNote', count }
+  const note = pageNote(saved.value?.dataset.rows.length ?? 0, page.value)
+  return note === null ? null : { key: 'data.tabular.pageNote', params: note, plural: note.total }
 })
 
 async function readFile(file: File): Promise<void> {
@@ -504,6 +534,31 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
             </tr>
           </tbody>
         </AppTable>
+
+        <!--
+          **쪽 넘김은 군집 구성원 표와 같은 문법이다** (결정 118). 확정된 표에만 서고, 한 쪽뿐이면
+          못 누르는 단추 둘을 두지 않는다.
+        -->
+        <div
+          v-if="!shown.draft && savedPage.pages > 1"
+          class="flex items-center justify-between gap-4"
+        >
+          <AppButton
+            variant="secondary"
+            :lock="lockFor('pageFirst', { page: savedPage.page })"
+            @click="page = turnPage(savedPage.page, -1, savedPage.pages)"
+          >
+            {{ t('common.prevPage') }}
+          </AppButton>
+          <p class="tabular-nums text-ink-soft">{{ savedPage.page + 1 }} / {{ savedPage.pages }}</p>
+          <AppButton
+            variant="secondary"
+            :lock="lockFor('pageLast', { page: savedPage.page, pages: savedPage.pages })"
+            @click="page = turnPage(savedPage.page, 1, savedPage.pages)"
+          >
+            {{ t('common.nextPage') }}
+          </AppButton>
+        </div>
       </section>
 
       <!-- **과녁은 스스로 높이를 갖는다.** `3xl` 미만에서는 늘려 줄 부모가 없다. -->
@@ -521,11 +576,11 @@ const chartSeed = computed(() => project.file?.document.settings.split.randomSta
     </div>
 
     <!--
-      **자른 경우에만 말한다.** 20줄짜리 파일에 "처음 20줄만"은 거짓말이다.
+      **자른 경우에만 말한다.** 한 번에 다 보이는 표에 범위를 적으면 할 말이 없는 문장이다.
       어느 문장인지는 `previewCaption`이 고른다 — 확정 전과 뒤가 다른 말이다.
     -->
     <p v-if="previewCaption" class="shrink-0 text-base text-ink-faint">
-      {{ t(previewCaption.key, previewCaption.count) }}
+      {{ t(previewCaption.key, previewCaption.params, previewCaption.plural) }}
     </p>
 
     <!--
