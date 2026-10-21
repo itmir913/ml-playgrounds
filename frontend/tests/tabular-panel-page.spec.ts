@@ -19,6 +19,7 @@ import { i18n, setLocale } from '../src/i18n'
 import { DATA_PREVIEW_PAGE_SIZE, TABLE_PREVIEW_ROW_COUNT } from '../src/limits'
 import { applyDataset } from '../src/project/dataset'
 import type { ProjectFile } from '../src/project/format'
+import { withTarget } from '../src/project/settings'
 import { closeStorage } from '../src/project/storage'
 import { useProjectStore } from '../src/stores/project'
 import TabularPanel from '../src/views/data/TabularPanel.vue'
@@ -140,6 +141,18 @@ describe('확정된 미리보기의 쪽 (결정 118)', () => {
           split: { ...after.document.settings.split, randomState: 8 },
         },
       },
+    })
+    await settle()
+
+    expect(wrapper.text()).toContain('2 / 3')
+    expect(bodyRows(wrapper)[0]).toBe(String(150 + SIZE))
+
+    // **`settings.data`를 통째로 새로 만드는 저장도 같다** (`withTabularData`가 zod를 거친다) —
+    // 키를 `settings.data.dataset`으로 두면 여기서 운다.
+    const latest = store.file!
+    await store.save({
+      ...latest,
+      document: withTarget(latest.document, '몸무게', '2026-10-21T00:00:01Z'),
     })
     await settle()
 

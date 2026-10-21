@@ -138,12 +138,15 @@ const saved = computed(() => {
 const page = ref(0)
 
 /**
- * **확정된 데이터가 바뀔 때만 첫 쪽으로 돌아간다.** 키는 `saved`가 아니라 데이터셋 참조의
- * 정체다 — `saved`는 저장마다 새 객체라 그것을 보면 자동 저장마다 1쪽으로 튄다. 다른 설정
- * 저장은 `data.dataset`을 얕게 펼쳐 그대로 둔다. 무는 검사: `tabular-panel-page.spec.ts`.
+ * **확정된 데이터가 바뀔 때만 첫 쪽으로 돌아간다.** 키는 정본 바이트를 든 `project.file.dataset`의
+ * 정체다 — `readDataset`이 캐시 키로 쓰는 그 객체이고, 새로 만드는 곳은 확정(`applyDataset`)뿐이다.
+ *
+ * **`saved`도 `settings.data.dataset`도 키가 될 수 없다.** `saved`는 저장마다 새 객체이고,
+ * `settings.data`는 목표·특성·전처리 저장이 zod를 거쳐 통째로 새로 만든다(`withTabularData`) —
+ * 둘 중 무엇을 봐도 무관한 저장에 1쪽으로 튄다. 무는 검사: `tabular-panel-page.spec.ts`.
  */
 watch(
-  () => project.file?.document.settings.data.dataset,
+  () => project.file?.dataset,
   () => {
     page.value = 0
   },
