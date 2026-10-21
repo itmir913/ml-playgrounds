@@ -128,6 +128,23 @@ describe('확정된 미리보기의 쪽 (결정 118)', () => {
 
     expect(wrapper.text()).toContain('2 / 3')
     expect(bodyRows(wrapper)[0]).toBe(String(150 + SIZE))
+
+    // **자동 저장의 길(`update`)도 같다** — 저쪽이 복제를 끼우는 날 여기서 운다.
+    const after = store.file!
+    store.update({
+      ...after,
+      document: {
+        ...after.document,
+        settings: {
+          ...after.document.settings,
+          split: { ...after.document.settings.split, randomState: 8 },
+        },
+      },
+    })
+    await settle()
+
+    expect(wrapper.text()).toContain('2 / 3')
+    expect(bodyRows(wrapper)[0]).toBe(String(150 + SIZE))
   })
 
   it('데이터를 다시 확정하면 첫 쪽으로 돌아간다', async () => {
