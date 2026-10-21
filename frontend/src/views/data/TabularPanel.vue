@@ -139,7 +139,8 @@ const page = ref(0)
 
 /**
  * **확정된 데이터가 바뀔 때만 첫 쪽으로 돌아간다.** 키는 정본 바이트를 든 `project.file.dataset`의
- * 정체다 — `readDataset`이 캐시 키로 쓰는 그 객체이고, 새로 만드는 곳은 확정(`applyDataset`)뿐이다.
+ * 정체다 — `readDataset`이 캐시 키로 쓰는 그 객체다. 저장 경로 중에서 새로 만드는 곳은 확정(`applyDataset`)뿐이고,
+ * 프로젝트를 여는 길(`loadProject`·`readProject`)도 새 객체를 만들어 1쪽으로 간다 — 그것이 의도다.
  *
  * **`saved`도 `settings.data.dataset`도 키가 될 수 없다.** `saved`는 저장마다 새 객체이고,
  * `settings.data`는 목표·특성·전처리 저장이 zod를 거쳐 통째로 새로 만든다(`withTabularData`) —
