@@ -57,6 +57,27 @@ export interface PermutationImportanceInput {
 /** 기준 점수를 견주는 허용오차. 같은 해석기의 같은 연산이라 정확히 같아야 한다(97과 같다). */
 const SCORE_TOLERANCE = 1e-9
 
+/**
+ * 감소량을 0으로 보는 허용오차. 정확도의 감소량은 1/행 수 단위라 정확히 0이고, 이것은 결정계수의 부동소수
+ * 잡음 — 화면에서 안 보이는 길이 — 을 위한 것이다. 무는 검사: `tests/permutation-importance.spec.ts`의
+ * "점수가 달라지지 않았는가".
+ */
+const ZERO_DROP_TOLERANCE = 1e-9
+
+/**
+ * **어느 열의 순서를 바꿔도 점수가 달라지지 않았는가** (99의 감사 뒤). 모든 열의 평균과 표준편차가 0이면
+ * 참이다 — 표준편차가 모표준편차라서 반복 하나하나의 감소량이 전부 0이라는 뜻과 같다. 평균만 0인 것(오르고
+ * 내린 것이 상쇄됨)은 거짓이다. 그때 화면은 그림 위에 그 사실을 한 문장으로 말한다.
+ */
+export function scoreUnchanged(importance: PermutationImportance): boolean {
+  return (
+    importance.weights.length > 0 &&
+    importance.weights.every(
+      (one) => Math.abs(one.mean) <= ZERO_DROP_TOLERANCE && one.std <= ZERO_DROP_TOLERANCE,
+    )
+  )
+}
+
 /** 재료와 그 실험에서 읽은 것. 예측하지 않으므로 화면을 열 때 바로 부른다. */
 interface Material {
   readonly taskType: 'classification' | 'regression'

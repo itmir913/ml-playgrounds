@@ -15,6 +15,8 @@ import {
   permutationImportanceAvailable,
   permutationImportanceFor,
   permutationSteps,
+  scoreUnchanged,
+  type PermutationImportance,
   type PermutationImportanceInput,
 } from '../src/ml/permutation-importance'
 import { StepsCancelled } from '../src/ml/predict-in-steps'
@@ -178,6 +180,81 @@ describe('순열 특성 중요도', () => {
     const { mean, std } = meanAndStd([1, 2, 3, 4])
     expect(mean).toBe(2.5)
     expect(std).toBeCloseTo(Math.sqrt(1.25), 12)
+  })
+
+  /**
+   * **"점수가 달라지지 않았다"는 문장이 참일 때만 참이다.** 학생 데이터(테스트 31행)에서 결정 트리가 다수
+   * 범주만 답해 모든 열이 0이었고, 빈 축만 남아 고장처럼 보였다(99의 감사 뒤).
+   */
+  describe('점수가 달라지지 않았는가', () => {
+    const of = (weights: [number, number][]): PermutationImportance => ({
+      metric: 'accuracy',
+      baseline: 0.968,
+      weights: weights.map(([mean, std], index) => ({ feature: `f${index}`, mean, std })),
+    })
+
+    it('모든 열이 0이면 참이다', () => {
+      expect(
+        scoreUnchanged(
+          of([
+            [0, 0],
+            [0, 0],
+          ]),
+        ),
+      ).toBe(true)
+    })
+    it('결정계수의 부동소수 잡음은 0이다', () => {
+      expect(
+        scoreUnchanged({
+          ...of([
+            [1e-16, 2e-16],
+            [0, 0],
+          ]),
+          metric: 'r2',
+        }),
+      ).toBe(true)
+    })
+    it('음수가 섞이면 거짓이다 — 음수 막대는 보인다', () => {
+      expect(
+        scoreUnchanged(
+          of([
+            [0, 0],
+            [-0.019, 0.0158],
+          ]),
+        ),
+      ).toBe(false)
+    })
+    it('매번 같은 음수여도 거짓이다', () => {
+      expect(
+        scoreUnchanged(
+          of([
+            [0, 0],
+            [-1 / 31, 0],
+          ]),
+        ),
+      ).toBe(false)
+    })
+    it('잡음보다 큰 감소량은 0이 아니다', () => {
+      expect(scoreUnchanged({ ...of([[1e-6, 0]]), metric: 'r2' })).toBe(false)
+    })
+    it('양수가 있으면 거짓이다', () => {
+      expect(
+        scoreUnchanged(
+          of([
+            [0, 0],
+            [1 / 31, 0],
+          ]),
+        ),
+      ).toBe(false)
+    })
+    it('평균만 0이면 거짓이다 — 오르고 내린 것이 상쇄됐다', () => {
+      const { mean, std } = meanAndStd([1 / 31, -1 / 31, 0, 0, 0])
+      expect(scoreUnchanged(of([[mean, std]]))).toBe(false)
+    })
+    it('잴 수 없으면 거짓이다', () => {
+      expect(scoreUnchanged(of([[Number.NaN, Number.NaN]]))).toBe(false)
+      expect(scoreUnchanged(of([]))).toBe(false)
+    })
   })
 
   /** 단추가 진행을 말한다 — 측정 하나마다 한 번, 전부 `permutationSteps`번이다. */

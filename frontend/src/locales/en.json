@@ -1110,7 +1110,8 @@
       "axisR2": "Drop in R-squared",
       "point": "Mean {mean}, standard deviation {std} ({feature})",
       "baseline": "Measured against the score of {score} before shuffling.",
-      "mismatch": "The new predictions do not match the saved score, so the permutation importance is not drawn."
+      "mismatch": "The new predictions do not match the saved score, so the permutation importance is not drawn.",
+      "scoreUnchanged": "Shuffling any column did not change the score, so every bar is zero. This can happen when the test data is small or when the model predicts the same value for almost every row."
     }
   },
   "predict": {

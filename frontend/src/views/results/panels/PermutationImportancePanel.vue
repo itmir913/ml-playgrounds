@@ -34,6 +34,7 @@ import {
   permutationImportanceAvailable,
   permutationImportanceFor,
   permutationSteps,
+  scoreUnchanged,
 } from '@/ml/permutation-importance'
 import { readTestDataset } from '@/project/dataset'
 
@@ -155,6 +156,9 @@ const options = computed((): ChartOptions<'bar'> => ({
     </p>
 
     <template v-else-if="importance">
+      <p v-if="scoreUnchanged(importance)" class="text-ink-soft">
+        {{ t('results.importance.scoreUnchanged') }}
+      </p>
       <div class="h-80 min-w-0">
         <Bar :data="data" :options="options" />
       </div>
