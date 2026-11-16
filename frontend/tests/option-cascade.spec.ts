@@ -62,7 +62,7 @@ import {
   trainableSelections,
 } from '../src/ml/selection'
 import { trainingSourceOf } from '../src/ml/training-source'
-import { factsOf } from '../src/stores/project'
+import { factsOf } from '../src/project/facts'
 import StepActionBar from '../src/components/StepActionBar.vue'
 import TabularSummaryRows from '../src/components/summary/TabularSummaryRows.vue'
 import { readDataset } from '../src/project/dataset'

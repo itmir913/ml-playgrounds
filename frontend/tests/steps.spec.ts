@@ -29,7 +29,7 @@ import {
 import { TASK_TYPES, type Portfolio } from '../src/project/schema'
 import { PREFERRED_CANONICAL_FORMAT } from '../src/data/image/formats'
 import { imageEntryPath } from '../src/data/image/canonical'
-import { factsOf } from '../src/stores/project'
+import { factsOf } from '../src/project/facts'
 import { experiment, emptyProjectFile, projectFile, run } from './fixtures/project'
 
 const FLAGS: readonly FactKey[] = [

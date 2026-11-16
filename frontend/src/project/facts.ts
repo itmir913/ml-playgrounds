@@ -12,8 +12,10 @@
 import { MIN_CLASSIFICATION_CATEGORIES } from '@/limits'
 import type { ProjectFile } from '@/project/format'
 import { labeledCategoryCount, readImages } from '@/project/images'
-import { featuresInUse, usesTarget } from '@/ml/selection'
+import { featuresInUse, trainableSelections, usesTarget } from '@/ml/selection'
+import { isPortfolioAnswered } from '@/project/portfolio'
 import { dataSettings, type DataType } from '@/project/schema'
+import { NO_FACTS, type ProjectFacts } from '@/router/steps'
 
 /**
  * 데이터 쪽이 답하는 사실들. **`ProjectFacts`의 부분집합이고 이름이 같다.**
@@ -85,4 +87,43 @@ export const DATA_FACTS: Readonly<Record<DataType, (file: ProjectFile) => DataFa
 /** 이 프로젝트의 종류가 답하는 사실들. */
 export function dataFactsOf(file: ProjectFile): DataFacts {
   return DATA_FACTS[file.document.manifest.dataType](file)
+}
+
+/**
+ * 파일에서 사실들을 뽑는다. **순수 함수라 스토어 없이 테스트한다.**
+ *
+ * 스키마를 아는 것은 여기까지다. steps.ts는 결과인 불리언들만 보고, 체크리스트와
+ * 잠금이 **둘 다 여기서 나온다** (architecture.md §8.7).
+ */
+export function factsOf(file: ProjectFile | null): ProjectFacts {
+  if (file === null) {
+    return NO_FACTS
+  }
+  const { settings, runs, portfolio } = file.document
+  const experiments = runs.experiments
+  return {
+    // 참조와 본체는 함께 있고 함께 없다 (mlpx-spec.md §1). 어느 쪽을 봐도 같지만
+    // 본체를 본다 - 화면이 알고 싶은 것은 "보여줄 표가 있는가"다.
+    // **데이터 쪽 셋은 종류가 답한다** (`project/facts.ts`). 표는 타깃 열과 특성 열로,
+    // 이미지는 사진과 범주로 같은 질문에 답한다 — 여기서 종류를 묻지 않는다.
+    ...dataFactsOf(file),
+    // 기본값이 없으므로 이건 진짜로 "학생이 골랐는가"다
+    // (open-decisions.md "기계학습 유형은 모델을 고르는 자리에서 고른다").
+    taskTypeChosen: file.document.manifest.taskType !== undefined,
+    // **학습에 넘어가는 모델로 센다** (`open-decisions.md` 55, R38-D55 B-2). 유형에 안 맞는 줄은
+    // 목록에 남지만 학습이 무시한다 — 그것만 담겼는데 체크하면 [학습하기]는 잠겼는데 체크리스트는
+    // 끝냈다고 한다. 유형이 없으면 아무것도 안 잠기므로 목록 그대로다(특성의 `featuresInUse`와 같은 모양).
+    algorithmsChosen:
+      (file.document.manifest.taskType === undefined
+        ? settings.selectedAlgorithms
+        : trainableSelections(settings.selectedAlgorithms, file.document.manifest.taskType)
+      ).length > 0,
+    trainingDone: experiments.some((experiment) => experiment.runs.length > 0),
+    modelReady: experiments.some((experiment) =>
+      experiment.runs.some((run) => run.model !== undefined),
+    ),
+    // **판정은 포트폴리오가 갖는다** (`project/portfolio.ts`). 여기서 한 번 더
+    // 세면 화면과 체크리스트가 갈릴 자리가 생긴다.
+    portfolioAnswered: isPortfolioAnswered(portfolio),
+  }
 }
