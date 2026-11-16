@@ -17,7 +17,7 @@ import { i18n, setLocale } from '../src/i18n'
 import type { FlowCounts } from '../src/ml/flow-counts'
 import { flowModelOf } from '../src/ml/flow'
 import { highlightOf } from '../src/ml/flow-highlight'
-import { FLOW_GEOMETRY } from '../src/ml/flow-layout'
+import { FLOW_GEOMETRY, layoutOf } from '../src/ml/flow-layout'
 import { targetOf } from '../src/ml/flow-view'
 import { factsOf } from '../src/project/facts'
 import { FLOW_HOVER_LINGER_MS, FLOW_HOVER_RELEASE_MS } from '../src/limits'
@@ -80,9 +80,9 @@ describe('SVG 층과 HTML 층', () => {
     }
   })
 
-  it('번역된 글자가 보인다 — 굵은 낱말은 자리표시자로 받는다', () => {
+  it('번역된 글자가 보인다 — 분할 줄은 한 키다', () => {
     const text = mountDiagram().text()
-    for (const word of [
+    for (const [at, word] of [
       '전체 데이터',
       '훈련 데이터',
       '새 데이터',
@@ -90,11 +90,11 @@ describe('SVG 층과 HTML 층', () => {
       '학습',
       '결과',
       '예측',
-    ]) {
-      expect(text, word).toContain(word)
+    ].entries()) {
+      expect(text, `translated label #${at}`).toContain(word)
     }
     expect(text).toContain('분할')
-    expect(text).toContain('80 : 20')
+    expect(text).toContain('분할 80 : 20')
     expect(text).toContain('훈련 데이터 기준')
     // 문자열을 HTML로 넣지 않는다.
     expect(text).not.toContain('<b>')
@@ -114,7 +114,7 @@ describe('SVG 층과 HTML 층', () => {
     expect(wrapper.findAll('.flow-chip-pending').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('수를 알면 특성 수와 행 수가 서고 사용 유무가 막대 이름에 든다', () => {
+  it('수를 알면 특성 수와 행 수가 선다', () => {
     const text = mountDiagram().text()
     expect(text).toContain('특성 4개')
     expect(text).toContain('150행')
@@ -199,6 +199,39 @@ describe('경로 강조는 꺼진 것을 모두 흐리고 켜진 것은 안 흐�
     })
   }
 
+  /**
+   * **선은 지나간 선만 켠다**(결정 120) — 순수 함수(`flow-highlight.spec.ts`)만 보면 선의 `g`가 그 판단에 묶였는지
+   * 모른다. 선 묶음 가운데 흐려지지 않은 것의 수가 강조가 켠 선(배치의 선 가운데 그 키가 켜진 것)의 수와 같아야 한다.
+   */
+  for (const one of FLOW_CASES) {
+    const file = one.build()
+    const model = flowModelOf(file, factsOf(file), 'preprocess')
+    if (model === null) continue
+    it(`경우 ${one.no}: 흐려지지 않은 선이 켜진 간선과 같은 수다`, async () => {
+      const wrapper = mountDiagram({ file, counts: { ...COUNTS, featureCount: 4 }, bars: null })
+      const lines = () =>
+        wrapper
+          .findAll('svg g.flow-fade')
+          .filter((group) => !group.classes().some((name) => name.startsWith('flow-tint')))
+          .filter((group) => group.find(':scope > path.flow-stroke').exists())
+      const drawn = layoutOf(model, {
+        bars: null,
+        testSize: file.document.settings.split.testSize,
+        chipWrap: false,
+      }).lines
+      expect(lines().length, `case ${one.no}: line groups`).toBe(drawn.length)
+      for (const target of [...model.nodes.map((node) => node.id as string), 'file:gray']) {
+        await wrapper.setProps({ pinned: target })
+        const lit = highlightOf(model, targetOf(target))
+        const expected = drawn.filter((line) => lit.edges.has(line.key))
+        const undimmed = lines().filter((group) => !group.classes().includes('flow-dim'))
+        expect(undimmed.length, `case ${one.no} highlight ${target}: lit lines`).toBe(
+          expected.length,
+        )
+      }
+    })
+  }
+
   it('겹친 점선 윤곽은 모두 흐려지는 조상(상자·원·칩 줄) 안에 선다', async () => {
     const wrapper = mountDiagram({
       file: withRuns(withTask(projectFile(), undefined), []),
@@ -213,7 +246,7 @@ describe('경로 강조는 꺼진 것을 모두 흐리고 켜진 것은 안 흐�
 })
 
 describe('탭 순서와 누르는 자리', () => {
-  it('파란 조각 다음에 그 막대의 회색 조각이 온다', () => {
+  it('파일 막대에서 파란 조각 다음에 회색 조각이 온다', () => {
     const names = mountDiagram()
       .findAll('button')
       .map((button) => button.attributes('aria-label'))

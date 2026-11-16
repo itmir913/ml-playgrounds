@@ -8,16 +8,18 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, toRaw } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import FlowHost from '../src/components/FlowHost.vue'
 import { useFlowDialog } from '../src/composables/useFlowDialog'
+import type { ProjectFile } from '../src/project/format'
+import { useProjectStore } from '../src/stores/project'
 import { projectFile } from './fixtures/project'
 
 /** 창 대역의 행동. 검사마다 바꾼다. */
-const behaviour = vi.hoisted(() => ({ explode: false }))
+const behaviour = vi.hoisted(() => ({ explode: false, file: null as unknown }))
 
 vi.mock('@/components/flow/FlowDialog.vue', async () => {
   const vue = await import('vue')
@@ -25,10 +27,15 @@ vi.mock('@/components/flow/FlowDialog.vue', async () => {
   return {
     __esModule: true,
     default: vue.defineComponent({
+      props: ['file', 'lite', 'open'],
       emits: ['close'],
-      setup(_props, { emit }) {
+      setup(props, { emit }) {
         if (behaviour.explode) throw new Error('dialog exploded')
-        return () => vue.h('button', { class: 'stub-close', onClick: () => emit('close') }, 'close')
+        return () => {
+          // 창이 받은 파일을 남긴다 — 어느 파일을 그리는지를 본다.
+          behaviour.file = props.file
+          return vue.h('button', { class: 'stub-close', onClick: () => emit('close') }, 'close')
+        }
       },
     }),
   }
@@ -50,6 +57,7 @@ let errors: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   setActivePinia(createPinia())
   behaviour.explode = false
+  behaviour.file = null
   errors = vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -96,6 +104,45 @@ describe('흐름도 창의 자리', () => {
     await flushPromises()
     expect(useFlowDialog().request.value).toBeNull()
     expect(document.activeElement).toBe(opener)
+    host.unmount()
+  })
+
+  /** 같은 프로젝트의 다른 판(학습이 끝나 바뀐 파일)을 만든다. id만 바꾸면 다른 프로젝트다. */
+  function variant(base: ProjectFile, projectId: string): ProjectFile {
+    return {
+      ...base,
+      document: { ...base.document, manifest: { ...base.document.manifest, projectId } },
+    }
+  }
+
+  it('열린 프로젝트의 창이면 스토어의 최신 파일을 그린다', async () => {
+    const opened = projectFile()
+    const live = variant(opened, opened.document.manifest.projectId)
+    useProjectStore().file = live
+    const { host } = await mountHost()
+    useFlowDialog().open(opened)
+    await flushPromises()
+    expect(toRaw(behaviour.file)).toBe(toRaw(live))
+    host.unmount()
+  })
+
+  it('다른 프로젝트의 창이면 연 파일 그대로다', async () => {
+    const opened = projectFile()
+    useProjectStore().file = variant(opened, 'someone-else')
+    const { host } = await mountHost()
+    useFlowDialog().open(opened)
+    await flushPromises()
+    expect(toRaw(behaviour.file)).toBe(toRaw(opened))
+    host.unmount()
+  })
+
+  it('점검(lite)은 같은 프로젝트라도 연 순간의 파일 그대로다', async () => {
+    const opened = projectFile()
+    useProjectStore().file = variant(opened, opened.document.manifest.projectId)
+    const { host } = await mountHost()
+    useFlowDialog().open(opened, { lite: true })
+    await flushPromises()
+    expect(toRaw(behaviour.file)).toBe(toRaw(opened))
     host.unmount()
   })
 

@@ -15,6 +15,7 @@ import FlowCard from '../src/components/flow/FlowCard.vue'
 import FlowDialog from '../src/components/flow/FlowDialog.vue'
 import { useFlowDialog } from '../src/composables/useFlowDialog'
 import { i18n, setLocale } from '../src/i18n'
+import { FLOW_DRAG_THRESHOLD_PX } from '../src/limits'
 import { FLOW_GEOMETRY } from '../src/ml/flow-layout'
 import { withTask } from './fixtures/flow-cases'
 import { projectFile } from './fixtures/project'
@@ -207,5 +208,53 @@ describe('군집화의 기준 이름', () => {
     expect(split.text()).toContain('훈련 데이터 기준')
     expect(split.text()).not.toContain('학습에 사용하는 데이터 기준')
     split.unmount()
+  })
+})
+
+/**
+ * **끌고 놓은 자리의 단추는 눌리지 않는다** (`FlowCanvas.vue`의 `swallowClick`). 판을 끌다 노드 위에서 놓으면
+ * 브라우저가 그 노드에 `click`을 보낸다 — 삼키지 않으면 끌 때마다 강조가 고정된다. 끌지 않고 누르면 고정한다.
+ * 손가락 둘의 핀치와 실제 끌림의 느낌은 jsdom이 못 잰다 — 사람 확인이다.
+ */
+describe('끌고 놓은 click은 고정하지 않는다', () => {
+  /** 마우스 포인터 사건. jsdom에는 `PointerEvent`가 없어 `MouseEvent`에 id와 종류를 얹는다. */
+  function pointer(type: string, x: number, init: MouseEventInit = {}): MouseEvent {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 0, ...init })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+    return event
+  }
+
+  it('끌었으면 놓은 뒤의 click을 삼키고, 다음 프레임부터는 다시 누른다', async () => {
+    const frames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    const wrapper = mountCanvas()
+    const learn = learnOf(wrapper).element
+    learn.dispatchEvent(pointer('pointerdown', 0, { button: 0 }))
+    window.dispatchEvent(pointer('pointermove', FLOW_DRAG_THRESHOLD_PX * 4, { buttons: 1 }))
+    window.dispatchEvent(pointer('pointerup', FLOW_DRAG_THRESHOLD_PX * 4))
+    learn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('update:pinned') ?? []).not.toContainEqual(['learn'])
+
+    for (const frame of frames.splice(0)) frame(0)
+    await learnOf(wrapper).trigger('click')
+    expect(wrapper.emitted('update:pinned')?.at(-1)).toEqual(['learn'])
+    wrapper.unmount()
+  })
+
+  it('문턱 안에서 놓으면 끈 것이 아니다 — 누른 노드를 고정한다', async () => {
+    const wrapper = mountCanvas()
+    const learn = learnOf(wrapper).element
+    learn.dispatchEvent(pointer('pointerdown', 0, { button: 0 }))
+    window.dispatchEvent(pointer('pointermove', 1, { buttons: 1 }))
+    window.dispatchEvent(pointer('pointerup', 1))
+    learn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(wrapper.emitted('update:pinned')?.at(-1)).toEqual(['learn'])
+    wrapper.unmount()
   })
 })

@@ -82,6 +82,24 @@ describe('대시보드 카드는 받은 폭이 그림 폭에 닿을 때만 그�
     expect(wrapper.find('h2').exists()).toBe(false)
   })
 
+  it('넉넉한 폭의 [크게 보기]도 같은 창을 열고 연 단추를 기억한다', async () => {
+    receiving(FLOW_GEOMETRY.width)
+    const file = projectFile()
+    const wrapper = mount(FlowCard, {
+      props: { file },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const button = wrapper.find('button[aria-label="크게 보기"]')
+    await button.trigger('click')
+    const request = useFlowDialog().request.value
+    expect(toRaw(request?.file)).toBe(toRaw(file))
+    expect(request?.lite).toBe(false)
+    expect(request?.opener).toBe(button.element)
+    wrapper.unmount()
+  })
+
   it('두 단추 모두 같은 창을 열고, 연 단추를 기억한다', async () => {
     receiving(FLOW_GEOMETRY.width - 1)
     const file = projectFile()
@@ -214,11 +232,17 @@ function sourcesIn(path: string): string[] {
   })
 }
 
-/** 정적으로 들이는 모듈(`import type`과 동적 `import()`는 아니다). */
+/**
+ * 정적으로 들이는 모듈(`import type`과 동적 `import()`는 아니다). **재수출(`export … from`)과 부수효과 임포트
+ * (`import '…'`)도 꾸러미에 싣는다** — 셋을 다 센다.
+ */
 function staticImports(source: string): string[] {
-  return [...source.matchAll(/^import\s+(?!type\b)[^;]*?from\s+'([^']+)'/gm)].map(
-    (hit) => hit[1] ?? '',
-  )
+  const patterns = [
+    /^import\s+(?!type\b)[^;]*?from\s+'([^']+)'/gm,
+    /^export\s+(?!type\b)(?:\*(?:\s+as\s+\w+)?|\{[^}]*\})\s+from\s+'([^']+)'/gm,
+    /^import\s+'([^']+)'/gm,
+  ]
+  return patterns.flatMap((pattern) => [...source.matchAll(pattern)].map((hit) => hit[1] ?? ''))
 }
 
 /** 이 파일들의 코드에서 주석을 걷는다 — 규칙을 가리키는 주석은 옳은 일이다. */
@@ -284,6 +308,10 @@ describe('첫 화면의 꾸러미에 계획 코드가 안 실린다', () => {
     expect(staticImports("import { a } from '@/ml/plan'")).toEqual(['@/ml/plan'])
     expect(staticImports("import type { A } from '@/ml/plan'")).toEqual([])
     expect(staticImports("const m = await import('@/ml/plan')")).toEqual([])
+    expect(staticImports("export { a } from '@/ml/plan'")).toEqual(['@/ml/plan'])
+    expect(staticImports("export * from '@/ml/plan'")).toEqual(['@/ml/plan'])
+    expect(staticImports("export type { A } from '@/ml/plan'")).toEqual([])
+    expect(staticImports("import '@/ml/plan'")).toEqual(['@/ml/plan'])
     expect(staticImports("import {\n  a,\n  b,\n} from '@/ml/plan-cache'")).toEqual([
       '@/ml/plan-cache',
     ])
@@ -372,14 +400,15 @@ describe('그림의 규칙', () => {
     expect(FILES.length).toBeGreaterThanOrEqual(5)
   })
 
+  /** 이름은 빨갛게 될 때 CI가 찍는 글자라 영어다. 순서대로 hex 색, `<style>`, 실행 중 색 읽기, 배색 속성, SVG 글자, 종류 견주기, 스토어. */
   const RULES: readonly [string, RegExp][] = [
-    ['색을 hex로 적지 않는다', /#[0-9a-fA-F]{3,8}\b(?!\$)/],
-    ['<style>을 두지 않는다', /<style\b/],
-    ['색을 실행 중에 읽지 않는다', /getComputedStyle/],
-    ['배색을 속성에서 읽지 않는다', /data-theme/],
-    ['SVG에 글자를 두지 않는다', /<text\b/],
-    ['종류를 화면에서 견주지 않는다', /\b(dataType|taskType)\s*[!=]==?/],
-    ['스토어를 읽지 않는다', /useProjectStore|stores\/project/],
+    ['no hex colours', /#[0-9a-fA-F]{3,8}\b(?!\$)/],
+    ['no <style> block', /<style\b/],
+    ['no getComputedStyle', /getComputedStyle/],
+    ['no data-theme branch', /data-theme/],
+    ['no SVG <text>', /<text\b/],
+    ['no kind comparison in the view', /\b(dataType|taskType)\s*[!=]==?/],
+    ['no project store', /useProjectStore|stores\/project/],
   ]
 
   for (const path of FILES) {
