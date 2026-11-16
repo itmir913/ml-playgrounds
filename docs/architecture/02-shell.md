@@ -163,7 +163,7 @@
 - **순서는 `ml/plan.ts`의 실행 순서다.**
 
 ```
-타깃·특성 → 사용할 데이터 양 → 테스트 데이터 → 데이터 정제
+타깃·특성 → 사용할 데이터 양 → 테스트 데이터 → 데이터 전처리
              sampleRows          splitRows        fitPreprocessor
 ```
 

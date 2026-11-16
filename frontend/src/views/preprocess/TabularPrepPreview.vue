@@ -53,7 +53,7 @@ function spanOf(column: PreprocessPreview['columns'][number]): number {
  * 그건 모델 파일과 특성 중요도가 쓰는 바로 그 글자다.
  *
  * 나머지는 **무엇이 되었는지**를 적는다. 방식 이름(`표준화`)을 안 쓰는 이유는 그것이
- * 바로 위 [데이터 정제]에 한 번만 서 있는 전역 설정이라, 열마다 되풀이하면 소음이
+ * 바로 위 [데이터 전처리]에 한 번만 서 있는 전역 설정이라, 열마다 되풀이하면 소음이
  * 되기 때문이다.
  */
 const VALUE_KIND_KEYS: Readonly<

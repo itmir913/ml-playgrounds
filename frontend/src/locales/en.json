@@ -260,9 +260,9 @@
       "choose": "Choose a file",
       "columnName": "Column",
       "dropHint": "Drop a CSV or Excel file here, or use [Choose a file].",
-      "droppedColumns": "Some chosen columns are not in the new data, so they were left out. Choose the target and features again in the preprocessing step. ({names})",
-      "droppedPredict": "The file to predict was deleted. Load a file that matches the new data again in the prediction step. ({fileName})",
-      "droppedTest": "The separate test data was detached, so part of the usable data is now used as test data. If you need separate test data, load a file that matches the new data again in the preprocessing step. ({fileName})",
+      "droppedColumns": "Some chosen columns are not in the newly loaded file, so they were left out. Choose the target and features again in the preprocessing step. ({names})",
+      "droppedPredict": "The file to predict was deleted. Load a file with the same columns as the newly loaded file again in the prediction step. ({fileName})",
+      "droppedTest": "The separate test data was detached, so part of the usable data is now used as test data. If you need separate test data, load a file with the same columns as the newly loaded file again in the preprocessing step. ({fileName})",
       "emptyReason": "No data yet.",
       "encoding": "Text encoding",
       "fileName": "File name",
@@ -469,7 +469,7 @@
       "apply": "Apply"
     },
     "tabular": {
-      "cleaningTitle": "Data cleaning",
+      "cleaningTitle": "Data preprocessing",
       "clearAll": "Clear every feature",
       "columnsLead": "Pick one column to predict, and the columns to predict it from.",
       "columnsTitle": "Target and features",
@@ -970,7 +970,7 @@
     "target": "The column the model has to guess. You can pick only one, and the column you pick cannot also be a feature. For example, to guess exam scores, the score column is the target. Clustering has no target.",
     "feature": "A column the model uses as evidence. You can pick several, and columns you leave unpicked are not used in training. For example, to guess exam scores you might pick study hours and attendance.",
     "kind": "Whether this column was automatically judged as Numeric or Categorical from its data. Numeric columns go through scaling, categorical ones through encoding. Some columns are written as numbers but their size has no meaning, such as a grade level or a postal code, so it is worth checking for yourself.",
-    "missing": "How many rows have no value here. Empty cells must be either filled in or left out before training, and you choose which in [Data cleaning] below.",
+    "missing": "How many rows have no value here. Empty cells must be either filled in or left out before training, and you choose which in [Data preprocessing] below.",
     "unique": "How many different values this column holds. A column with only one value cannot tell any data apart, so it does not help training, and a categorical column adds one encoded column per value, so many values means many columns.",
     "effect": "What actually happens to this column with the current settings. Filled-in values and scaling are worked out from the training data only, so these numbers are not the whole column."
   },
