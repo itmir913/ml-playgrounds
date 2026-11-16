@@ -415,3 +415,15 @@ describe('박스 플롯의 툴팁', () => {
     expect(label).toContain('최댓값 500')
   })
 })
+
+/** **보는 창은 제목줄 오른쪽 위에서 닫는다** (`AppDialog`의 `closeLabel`). 누르면 부모에게 닫자고 올린다. */
+describe('닫기', () => {
+  it('제목줄의 닫기 단추를 누르면 닫자고 올린다', async () => {
+    const wrapper = open('키')
+    const label = i18n.global.t('common.dismiss')
+    const button = wrapper.find(`button[aria-label="${label}"]`)
+    expect(button.exists()).toBe(true)
+    await button.trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+})

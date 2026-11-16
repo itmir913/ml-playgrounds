@@ -214,3 +214,40 @@ describe('열릴 때의 초점은 `focusPanel`이 쥔다', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * **제목줄의 닫기 단추는 `closeLabel`이 쥔다.** 보는 창(흐름도·시각화)은 이름을 주고 동작 줄을 비운다 —
+ * 그때 단추는 오른쪽 위에 서고 아래 동작 줄은 서지 않는다. 이름이 없으면 전과 같다: 단추가 없고 동작 줄이 선다.
+ */
+describe('제목줄 닫기는 `closeLabel`이 쥔다', () => {
+  /** 제목줄의 닫기 단추. 동작 줄 밖에서 이름을 든 단추다. */
+  function titleClose(wrapper: ReturnType<typeof render>) {
+    return wrapper.find('button[aria-label="닫기"]')
+  }
+
+  it('이름을 주면 단추가 서고, 누르면 닫자고 올린다', async () => {
+    const wrapper = render(true, { closeLabel: '닫기' })
+    expect(titleClose(wrapper).exists()).toBe(true)
+    await titleClose(wrapper).trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('이름을 주고 동작 줄이 비면 동작 줄이 서지 않는다', () => {
+    const wrapper = render(true, { closeLabel: '닫기' })
+    expect(wrapper.find('.\\@container').exists()).toBe(false)
+  })
+
+  it('이름을 주어도 동작 줄을 채우면 선다', () => {
+    const wrapper = mount(AppDialog, {
+      props: { open: true, title: '제목', closeLabel: '닫기' },
+      slots: { actions: '<button type="button">확인</button>' },
+    })
+    expect(wrapper.find('.\\@container').text()).toContain('확인')
+  })
+
+  it('이름이 없으면 전과 같다 — 단추가 없고 동작 줄이 선다', () => {
+    const wrapper = render(true)
+    expect(wrapper.find('h2 + button').exists()).toBe(false)
+    expect(wrapper.find('.\\@container').exists()).toBe(true)
+  })
+})
