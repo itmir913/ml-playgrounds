@@ -41,14 +41,14 @@ export interface FlowCounts {
   readonly total: number | null
   /** 학습에 들 수 있는 행. 표는 타깃이 비었거나 전처리가 버리는 행이 빠진다. 사진은 분류에서 범주가 있는 것이다. */
   readonly usable: number | null
-  /** 표본으로 뽑힌 행. 표본 수를 안 켰으면 `usable`과 같다. */
+  /** 표본으로 추출된 행. 표본 수를 안 켰으면 `usable`과 같다. */
   readonly sampled: number | null
   readonly train: number | null
-  /** 테스트 데이터의 수. 별도 테스트 파일이면 그 파일에서 학습에 드는 수이고, 군집은 0이다. */
+  /** 테스트 데이터의 수. 별도 테스트 파일이면 그 파일에서 학습에 드는 수이고, 군집화는 0이다. */
   readonly test: number | null
-  /** 전체에서 쓸 수 없어 빠진 몫. 표는 사용할 수 없는 행, 사진은 범주가 없는 사진(분류만)이다. */
+  /** 전체에서 사용할 수 없어 제외된 몫. 표는 사용할 수 없는 행, 사진은 범주가 없는 사진(분류만)이다. */
   readonly unusable: number | null
-  /** 쓸 수 있지만 표본에서 빠진 몫. */
+  /** 사용할 수 있지만 표본에서 제외된 몫. */
   readonly notDrawn: number | null
   /** 학습에 들어가는 특성 수. 사진은 특성이 없어 `null`이다. */
   readonly featureCount: number | null
@@ -90,8 +90,15 @@ function tabularShape(
     features: data.features,
     preprocessing: data.preprocessing,
   })
+  // 학습에 드는 특성만 넘긴다(`fitsAnyBasis`의 머리말) — `usableFeatures`와 같은 판정이다. 값이 전부 빈 열처럼
+  // 학습이 빼는 열이 남아 있으면 구할 값이 없는데도 기준 화살표가 선다.
   const features = plan.columns
-    .filter((column) => column.role === 'feature')
+    .filter(
+      (column) =>
+        column.role === 'feature' &&
+        column.featureIssue === undefined &&
+        column.featureNote === undefined,
+    )
     .map((column) => ({ name: column.summary.name, kind: column.summary.kind }))
   return {
     featureCount: plan.usableFeatures,
@@ -150,7 +157,7 @@ function tabularLite(file: ProjectFile): FlowCounts | null {
 /**
  * 사진의 수. **계획 없이 센다** — 사진은 임베딩을 열이 있는 표로 바꿔 학습하는데, 그 표를 지으려면 백본이
  * 돌아야 해서 그림을 위해 부를 수 없다. 대신 같은 규칙을 사진 수에 적용한다: 분류는 범주가 있는 사진만 쓰고
- * (`ml/images.ts`), 표본 수가 남는 수보다 적을 때만 뽑고(`ml/sample.ts`), 테스트 몫은 `testCountFor`다.
+ * (`ml/images.ts`), 표본 수가 남는 수보다 적을 때만 추출하고(`ml/sample.ts`), 테스트 몫은 `testCountFor`다.
  * 학습이 거절하는 모양이면(범주 하나, 사진 한 장) 계획이 안 선 것과 같아 행 수는 비어 있다.
  * `tests/flow-counts.spec.ts`가 학습이 낸 인덱스의 길이와 대조한다.
  */
@@ -178,7 +185,7 @@ function imageRows(
 
   const sampled =
     settings.nSamples === undefined || settings.nSamples >= usable ? usable : settings.nSamples
-  // 나누는 방법: 군집은 나누지 않고, 별도 테스트는 뽑은 사진이 전부 훈련이며, 그 밖에는 holdout이다.
+  // 나누는 방법: 군집화는 나누지 않고, 별도 테스트는 추출한 사진이 전부 훈련이며, 그 밖에는 holdout이다.
   const test = clustering
     ? 0
     : provided

@@ -33,6 +33,8 @@ export interface FlowText {
 
 export const FLOW_TEXT: Readonly<Record<DataType, FlowText>> = {
   tabular: {
+    // 표의 행 수는 전처리 요약의 단위를 빌린다 — 문구가 같고(`150행`·`150 rows`), 이름 옆에서도 혼자서도 단위가
+    // 붙는다. 사진은 혼자 서면 영어에 낱말이 있어야 해서(`28 photos`) 흐름도의 키를 따로 둔다(`flow.image.count`).
     countKey: 'preprocess.tabular.summaryRowUnit',
     featuresKey: 'flow.tabular.features',
     featuresUnknownKey: 'preprocess.tabular.roleFeature',
