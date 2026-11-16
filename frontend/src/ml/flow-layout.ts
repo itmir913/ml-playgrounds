@@ -62,13 +62,13 @@ export const FLOW_GEOMETRY = {
   barRadius: 4,
   /**
    * **아직 안 한 일의 윤곽(상자·원·칩·카드·막대, 점선 선)은 한 문법이다.** 굵기와 점선의 길이·간격이 이 셋이고 색은
-   * \`flow-outline\`(utilities.css) 한 곳이다. 점선 간선도 같은 점선 리듬을 쓴다 — 선과 윤곽이 한 그림 안에서 같은
-   * 박자로 읽히게 하려는 것이고, 선은 굵기만 다르다(\`stroke\`).
+   * `flow-outline`(utilities.css) 한 곳이다. 점선 간선도 같은 점선 리듬을 쓴다 — 선과 윤곽이 한 그림 안에서 같은
+   * 박자로 읽히게 하려는 것이고, 선은 굵기만 다르다(`stroke`).
    */
   pendingStroke: 1.5,
   pendingDashOn: 6,
   pendingDashOff: 5,
-  /** 상자의 모서리(\`rounded-control\`)와 칩의 모서리(\`rounded-2xl\`) — 윤곽이 HTML 가장자리와 겹치게 같은 값이다. */
+  /** 상자의 모서리(`rounded-control`)와 칩의 모서리(`rounded-2xl`) — 윤곽이 HTML 가장자리와 겹치게 같은 값이다. */
   boxRadius: 8,
   chipRadius: 16,
 

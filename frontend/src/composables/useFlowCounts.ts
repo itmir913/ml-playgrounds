@@ -56,8 +56,10 @@ export function useFlowCounts(
         if (mine !== round) return
         counts.value = found
         bars.value = module.barValuesOf(found)
-      } catch {
-        // 수를 못 구하면 윤곽으로 둔다. 학생에게 알릴 일이 아니다 — 그림은 설정에서 선다.
+      } catch (error) {
+        // 수를 못 구하면 윤곽으로 둔다. 학생에게 알릴 일이 아니다 — 그림은 설정에서 선다. 그래도 조용히 삼키지
+        // 않는다 — 청크를 못 받았는지 계산이 던졌는지 개발자가 콘솔에서 가른다.
+        console.error('project flow counts failed', error)
         if (mine !== round) return
         counts.value = null
         bars.value = null
