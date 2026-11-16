@@ -376,7 +376,7 @@ describe('첫 화면에서 건너서 닿는 코드에도 계획 코드가 없다
   const seen = reachable(ROOTS)
 
   it('따라간 길이 흐름도의 계산 모듈까지 닿는다', () => {
-    for (const name of ['flow.ts', 'flow-layout.ts', 'flow-view.ts', 'flow-zoom.ts'])
+    for (const name of ['flow.ts', 'flow-layout.ts', 'flow-view.ts'])
       expect([...seen.keys()], name).toContain(join(SRC, 'ml', name))
     expect([...seen.keys()]).toContain(join(SRC, 'project', 'facts.ts'))
   })

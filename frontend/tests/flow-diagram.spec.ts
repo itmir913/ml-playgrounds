@@ -74,9 +74,9 @@ describe('SVG 층과 HTML 층', () => {
   it('눌러서 닿는 것은 전부 HTML 단추이고 이름이 있다', () => {
     const buttons = mountDiagram().findAll('button')
     expect(buttons.length).toBeGreaterThanOrEqual(10)
-    for (const button of buttons) {
+    for (const [at, button] of buttons.entries()) {
       const name = button.attributes('aria-label') ?? button.text()
-      expect(name.trim(), button.html()).not.toBe('')
+      expect(name.trim(), `button #${at}`).not.toBe('')
     }
   })
 
@@ -142,8 +142,8 @@ describe('아직 안 한 일의 윤곽은 한 문법이다', () => {
     // HTML 안에 겹친 윤곽: 선을 두 배로 긋고 바깥 절반을 잘라 남는 안쪽이 pendingStroke다.
     const overlays = wrapper.findAll('rect.flow-outline')
     expect(overlays.length).toBeGreaterThanOrEqual(3)
-    for (const rect of overlays) {
-      expect(rect.attributes('stroke-width'), rect.html()).toBe(
+    for (const [at, rect] of overlays.entries()) {
+      expect(rect.attributes('stroke-width'), `outline #${at}`).toBe(
         String(FLOW_GEOMETRY.pendingStroke * 2),
       )
       expect(rect.attributes('stroke-dasharray')).toBe(dash)
@@ -239,8 +239,8 @@ describe('경로 강조는 꺼진 것을 모두 흐리고 켜진 것은 안 흐�
       bars: null,
     })
     expect(wrapper.findAll('rect.flow-outline').length).toBeGreaterThan(0)
-    for (const outline of wrapper.findAll('rect.flow-outline')) {
-      expect(outline.element.closest('.flow-fade'), outline.html()).not.toBeNull()
+    for (const [at, outline] of wrapper.findAll('rect.flow-outline').entries()) {
+      expect(outline.element.closest('.flow-fade'), `outline #${at}`).not.toBeNull()
     }
   })
 })
@@ -265,12 +265,12 @@ describe('탭 순서와 누르는 자리', () => {
         ),
       )
     expect(hits.length).toBeGreaterThanOrEqual(4)
-    for (const hit of hits) {
+    for (const [at, hit] of hits.entries()) {
       const element = hit.element as HTMLElement
-      expect(parseFloat(element.style.width), hit.html()).toBeGreaterThanOrEqual(
+      expect(parseFloat(element.style.width), `hit #${at} width`).toBeGreaterThanOrEqual(
         FLOW_GEOMETRY.hitMin,
       )
-      expect(parseFloat(element.style.height), hit.html()).toBeGreaterThanOrEqual(
+      expect(parseFloat(element.style.height), `hit #${at} height`).toBeGreaterThanOrEqual(
         FLOW_GEOMETRY.hitMin,
       )
     }
@@ -328,6 +328,27 @@ describe('누르면 고정하고 다시 누르면 푼다', () => {
     const before = wrapper.findAll('.flow-dim').length
     await buttons.find((button) => button.text() === '결과')!.trigger('pointerenter')
     expect(wrapper.findAll('.flow-dim').length).toBe(before)
+  })
+})
+
+/**
+ * **키보드로 닿아도 마우스를 올린 것과 같다** — 상자·원·새 데이터 카드·막대 조각 네 갈래가 모두 `focus`에 강조를
+ * 켜고 `blur` 뒤에 푼다. 마우스 검사(`pointerenter`)만으로는 이 길을 지우거나 엇걸어도 모른다.
+ */
+describe('초점이 오면 강조하고 떠나면 푼다', () => {
+  it('누르는 자리마다 focus에 흐림이 생기고 blur 뒤에 사라진다', async () => {
+    vi.useFakeTimers()
+    const wrapper = mountDiagram()
+    const buttons = wrapper.findAll('button')
+    expect(buttons.length).toBeGreaterThan(5)
+    for (const [at, button] of buttons.entries()) {
+      await button.trigger('focus')
+      expect(wrapper.findAll('.flow-dim').length, `button #${at} focus`).toBeGreaterThan(0)
+      await button.trigger('blur')
+      await vi.runAllTimersAsync()
+      expect(wrapper.findAll('.flow-dim'), `button #${at} blur`).toEqual([])
+    }
+    vi.useRealTimers()
   })
 })
 
@@ -398,8 +419,8 @@ describe('마우스를 올리면 강조만 하고 풀림은 늦춘다', () => {
       .findAll('button')
       .find((button) => button.text().startsWith('학습'))!
       .trigger('pointerenter')
-    for (const dimmed of wrapper.findAll('.flow-dim')) {
-      expect(dimmed.classes(), dimmed.html()).toContain('flow-fade')
+    for (const [at, dimmed] of wrapper.findAll('.flow-dim').entries()) {
+      expect(dimmed.classes(), `dimmed #${at}`).toContain('flow-fade')
     }
   })
 })

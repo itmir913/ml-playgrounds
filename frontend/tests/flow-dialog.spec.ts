@@ -258,3 +258,122 @@ describe('끌고 놓은 click은 고정하지 않는다', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * **Esc의 뒷길** (`FlowDialog.vue`의 `onCancel`). keydown을 못 막고 `cancel`이 와도 고정이 남아 있으면 그것만
+ * 풀고 창을 지킨다. 고정이 없으면 막지 않아 창이 닫힌다.
+ */
+describe('cancel이 와도 Esc의 순서를 따른다', () => {
+  it('고정이 있으면 막고 풀고, 없으면 그대로 둔다', async () => {
+    const wrapper = mount(FlowDialog, {
+      props: { file: projectFile(), lite: true, open: true },
+      global: { plugins: [i18n] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+    const dialog = wrapper.find('dialog').element
+    await learnOf(wrapper).trigger('click')
+    expect(wrapper.findAll('[aria-pressed="true"]').length).toBe(1)
+
+    const first = new Event('cancel', { cancelable: true })
+    dialog.dispatchEvent(first)
+    await flushPromises()
+    expect(first.defaultPrevented).toBe(true)
+    expect(wrapper.findAll('[aria-pressed="true"]')).toEqual([])
+
+    const second = new Event('cancel', { cancelable: true })
+    dialog.dispatchEvent(second)
+    expect(second.defaultPrevented).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+/**
+ * **판이 확대 모듈에 이어져 있다** (`FlowCanvas.vue`). 계산은 `flow-zoom.spec.ts`가 보고, 여기서는 그 함수가 판에
+ * 걸렸는지 본다: 첫 화면은 100%를 넘지도 밑돌지도 않고(§8.22, 줄이면 `text-base`가 깨진다), 단추와 휠이 배율을
+ * 그 방향으로 바꾸고, [전체 보기]는 맞춤 배율이다. jsdom은 레이아웃을 안 하므로 판(`role=group`)·그림 판·확대
+ * 막대의 크기를 정해 준다. 핀치와 키보드 초점을 따라 판을 옮기는 것(`reveal`)은 사람 확인이다.
+ */
+describe('판의 확대와 첫 화면', () => {
+  /** 판이 그림보다 좁다 — 그림이 담기지 않는다. */
+  const VIEWPORT = { w: 400, h: 600 }
+  const PLANE = { w: FLOW_GEOMETRY.width, h: 900 }
+  const BAR = { w: 200, h: 40 }
+
+  function sizeOf(element: HTMLElement): { w: number; h: number } {
+    if (element.getAttribute('role') === 'group') return VIEWPORT
+    if (element.classList.contains('origin-top-left')) return PLANE
+    if (element.classList.contains('z-20')) return BAR
+    return { w: 0, h: 0 }
+  }
+
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return sizeOf(this).w
+    })
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return sizeOf(this).h
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /** 지금 배율. 판의 `transform`에서 읽는다. */
+  function scaleOf(wrapper: ReturnType<typeof mountCanvas>): number {
+    const style = wrapper.find('.origin-top-left').attributes('style') ?? ''
+    const found = /scale\(([\d.]+)\)/.exec(style)
+    return Number(found?.[1] ?? Number.NaN)
+  }
+
+  async function zoomButton(wrapper: ReturnType<typeof mountCanvas>, key: string): Promise<void> {
+    await wrapper.find(`button[aria-label="${i18n.global.t(key)}"]`).trigger('click')
+  }
+
+  it('그림이 안 담기는 폭에서도 첫 화면은 100%다', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+    expect(scaleOf(wrapper)).toBe(1)
+    expect(wrapper.find('output').text()).toContain('100')
+    wrapper.unmount()
+  })
+
+  it('[축소]는 줄이고 [확대]는 키운다', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+    await zoomButton(wrapper, 'flow.zoomOut')
+    const smaller = scaleOf(wrapper)
+    expect(smaller).toBeLessThan(1)
+    await zoomButton(wrapper, 'flow.zoomIn')
+    expect(scaleOf(wrapper)).toBeGreaterThan(smaller)
+    wrapper.unmount()
+  })
+
+  it('[전체 보기]는 그림을 다 담는 맞춤 배율이다', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+    await zoomButton(wrapper, 'flow.fit')
+    const scale = scaleOf(wrapper)
+    expect(scale).toBeLessThan(1)
+    expect(PLANE.w * scale).toBeLessThanOrEqual(VIEWPORT.w)
+    wrapper.unmount()
+  })
+
+  it('휠 한 번에 배율이 바뀐다', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+    wrapper
+      .find('[role="group"]')
+      .element.dispatchEvent(
+        new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true }),
+      )
+    await flushPromises()
+    expect(scaleOf(wrapper)).toBeLessThan(1)
+    wrapper.unmount()
+  })
+})
