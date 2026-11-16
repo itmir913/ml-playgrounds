@@ -99,7 +99,7 @@ async function drawn(wrapper: ReturnType<typeof open>): Promise<void> {
 /**
  * 도구 단추들. 창의 왼쪽 칸에 한 열로 선다.
  *
- * **본문 안에서만 찾는다.** 창 전체에서 단추를 걷으면 아래 [닫기]까지 딸려 와서,
+ * **본문 안에서만 찾는다.** 창 전체에서 단추를 걷으면 제목줄의 [닫기]까지 딸려 와서,
  * "도구가 넷이다"를 세는 검사가 다섯을 센다 (2026-09-22).
  */
 function toolButtons(wrapper: ReturnType<typeof open>) {

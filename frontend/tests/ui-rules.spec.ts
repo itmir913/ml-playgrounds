@@ -1913,6 +1913,30 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * **`ColumnEncodingDialog.vue`도 `CLOSERS`가 아니다** (open-decisions.md 116). [적용]은 고른 설정을 동기로
    * 넘기고 끝나는 창이라 실패할 일이 없다 — 받는 쪽(`TabularPrepPanel`의 `applyEncoding`)이 닫고 쓴다.
    */
+  /**
+   * **보는 창은 제목줄에서 닫는다** (#51, architecture.md §8.14). 아래 동작 줄에 단추가 하나뿐이면
+   * 그것은 [닫기]이고 결정이 없는 창이다 — 그 줄이 본문 자리를 먹는다. `actions` 슬롯이 없는 창은
+   * `closeLabel`이 있어야 한다(없으면 닫는 단추가 아예 없다). 결정을 받는 창(단추 둘 이상)은 그대로다.
+   */
+  it('보는 창은 제목줄에서 닫는다', () => {
+    const offenders: string[] = []
+    for (const path of vueFiles(SRC)) {
+      const source = readFileSync(path, 'utf-8')
+      for (const hit of source.matchAll(/<AppDialog\b([\s\S]*?)<\/AppDialog>/g)) {
+        const body = hit[1] ?? ''
+        const name = path.slice(SRC.length + 1).replace(/\\/g, '/')
+        const actions = /<template #actions>([\s\S]*?)<\/template>/.exec(body)
+        if (actions === null) {
+          if (!/:close-label=/.test(body)) offenders.push(`${name}: no close`)
+          continue
+        }
+        const buttons = (actions[1] ?? '').match(/<AppButton\b/g) ?? []
+        if (buttons.length < 2) offenders.push(`${name}: lone action`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
   it('AppDialog를 쓰는 화면이 그대로다 - 늘었으면 CLOSERS를 다시 보라', () => {
     const screens = vueFiles(SRC)
       .filter((path) => readFileSync(path, 'utf-8').includes('AppDialog'))

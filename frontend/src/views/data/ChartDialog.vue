@@ -18,7 +18,6 @@ import { useI18n } from 'vue-i18n'
 
 import { CHART_CONTROLS } from '@/data/charts'
 
-import AppButton from '@/components/AppButton.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import AppPlainButton from '@/components/AppPlainButton.vue'
 import { useFormat } from '@/composables/useFormat'
@@ -165,6 +164,7 @@ const explanation = computed(() => {
     fill
     persistent
     :open="props.open"
+    :close-label="t('common.dismiss')"
     :title="t('data.charts.title')"
     :description="t('data.charts.lead')"
     @close="emit('close')"
@@ -284,9 +284,5 @@ const explanation = computed(() => {
         <component :is="tool.panel" v-if="tool && blocks(tool).length === 0" :input="input" />
       </div>
     </div>
-
-    <template #actions>
-      <AppButton variant="secondary" @click="emit('close')">{{ t('common.dismiss') }}</AppButton>
-    </template>
   </AppDialog>
 </template>
