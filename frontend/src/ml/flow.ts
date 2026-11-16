@@ -82,7 +82,7 @@ export const FLOW_LABEL_KEYS = {
   train: 'flow.train',
   // 군집화에는 훈련 몫이 따로 없다. 전부가 학습에 들어가고 이름이 그것을 말한다.
   trainAll: 'flow.usable',
-  test: 'results.regression.series',
+  test: 'flow.test',
   new: 'flow.newData',
   preprocess: 'preprocess.tabular.cleaningTitle',
   backbone: 'meta.image.backbone',

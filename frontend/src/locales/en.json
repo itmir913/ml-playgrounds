@@ -1209,9 +1209,9 @@
     "basisWhole": "From the data used for training",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "splitName": "Split",
-    "split": "{label} {train} : {test}",
-    "splitPending": "{label} undecided",
+    "split": "Split {train} : {test}",
+    "splitPending": "Split undecided",
+    "test": "Test data",
     "task": {
       "classification": "Classification",
       "regression": "Regression",
@@ -1224,7 +1224,8 @@
     },
     "image": {
       "features": "Photos",
-      "targetSet": "Category set"
+      "targetSet": "Category set",
+      "count": "{count} photo | {count} photos"
     }
   }
 }

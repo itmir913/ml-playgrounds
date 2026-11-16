@@ -40,7 +40,7 @@ export const FLOW_TEXT: Readonly<Record<DataType, FlowText>> = {
     noDataKey: 'steps.preprocess.tabular.locked',
   },
   image: {
-    countKey: 'meta.image.countUnit',
+    countKey: 'flow.image.count',
     featuresKey: 'flow.image.features',
     featuresUnknownKey: 'flow.image.features',
     targetKey: 'flow.image.targetSet',

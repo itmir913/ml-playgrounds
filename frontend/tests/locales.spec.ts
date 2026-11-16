@@ -1060,8 +1060,9 @@ describe('언어들이 나란히 말한다', () => {
     // 자체라 배지가 이미 말한 낱말이 된다. 혼자 서는 배지는 낱말이 있어야 하고
     // (`1001 photos`), 이름 옆의 값은 숫자만 남아야 한다 (`Photos 1001`).
     // 그리기 창의 "추가할 그림" 옆 수도 세는 단위 `장`이지만, 영어는 세는 것이 사진이 아니라
-    // 그림이라 `drawings`다 (#38).
-    ['data.image.sketch.trayCount', 'meta.image.count', 'meta.image.countUnit'],
+    // 그림이라 `drawings`다 (#38). 흐름도의 전체 데이터 카드도 혼자 서는 수라(파일 이름이 없다) 낱말이 있어야 한다
+    // (`flow.image.count`, `28 photos`).
+    ['data.image.sketch.trayCount', 'flow.image.count', 'meta.image.count', 'meta.image.countUnit'],
     /**
      * **아래 셋은 한 가지 이유다 — 한국어가 확인 버튼을 어미로 표시한다.**
      * 화면의 버튼은 명사(`삭제`·`해제`·`추가`)이고 대화상자의 확인 버튼은

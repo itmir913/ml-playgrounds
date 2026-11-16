@@ -1209,9 +1209,9 @@
     "basisWhole": "학습에 사용하는 데이터 기준",
     "zoomIn": "확대",
     "zoomOut": "축소",
-    "splitName": "분할",
-    "split": "{label} {train} : {test}",
-    "splitPending": "{label} 미정",
+    "split": "분할 {train} : {test}",
+    "splitPending": "분할 미정",
+    "test": "테스트 데이터",
     "task": {
       "classification": "분류",
       "regression": "회귀",
@@ -1224,7 +1224,8 @@
     },
     "image": {
       "features": "사진",
-      "targetSet": "범주 지정됨"
+      "targetSet": "범주 지정됨",
+      "count": "{count}장"
     }
   }
 }

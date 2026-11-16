@@ -19,7 +19,7 @@
  */
 
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
-import { I18nT, useI18n } from 'vue-i18n'
+import { useI18n } from 'vue-i18n'
 
 import AppPlainButton from '@/components/AppPlainButton.vue'
 import FlowOutline from '@/components/flow/FlowOutline.vue'
@@ -511,22 +511,15 @@ const newCard = computed(() => layout.value?.cards.find((card) => card.id === 'n
       </div>
     </template>
 
-    <!-- 분할 글자 줄. 굵은 낱말은 번역의 자리표시자로 받는다. -->
-    <I18nT
+    <!-- 분할 글자 줄. 한 줄이 한 키다 — 굵게 그리던 이름을 따로 끼우지 않는다(i18n.md 규칙 3). -->
+    <p
       v-if="layout.splitTextY !== null"
-      :keypath="unsetTask ? 'flow.splitPending' : 'flow.split'"
-      tag="p"
-      scope="global"
       class="flow-fade absolute h-6 truncate text-ink-soft"
       :class="fade(nodeEmphasis(highlight, 'file'))"
       :style="{ left: px(G.innerX), top: px(layout.splitTextY), width: px(G.innerW) }"
     >
-      <template #label
-        ><b class="font-semibold text-ink">{{ t('flow.splitName') }}</b></template
-      >
-      <template #train>{{ percents.train }}</template>
-      <template #test>{{ percents.test }}</template>
-    </I18nT>
+      {{ unsetTask ? t('flow.splitPending') : t('flow.split', percents) }}
+    </p>
 
     <!-- 분할 막대 밑의 이름. 노드가 곧 조각의 이름이다. -->
     <div

@@ -1209,9 +1209,9 @@
     "basisWhole": "学習に\u200b使用する\u200bデータから算出",
     "zoomIn": "拡大",
     "zoomOut": "縮小",
-    "splitName": "分割",
-    "split": "{label} {train} : {test}",
-    "splitPending": "{label}は\u200b未定",
+    "split": "分割 {train} : {test}",
+    "splitPending": "分割は\u200b未定",
+    "test": "テストデータ",
     "task": {
       "classification": "分類",
       "regression": "回帰",
@@ -1224,7 +1224,8 @@
     },
     "image": {
       "features": "写真",
-      "targetSet": "クラス\u200b指定済み"
+      "targetSet": "クラス\u200b指定済み",
+      "count": "{count}枚"
     }
   }
 }
