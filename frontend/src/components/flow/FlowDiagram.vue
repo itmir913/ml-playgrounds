@@ -511,10 +511,13 @@ const newCard = computed(() => layout.value?.cards.find((card) => card.id === 'n
       </div>
     </template>
 
-    <!-- 분할 글자 줄. 한 줄이 한 키다 — 굵게 그리던 이름을 따로 끼우지 않는다(i18n.md 규칙 3). -->
+    <!--
+      분할 글자 줄. 한 줄이 한 키다 — 이름만 굵게 하려고 따로 끼우지 않고 줄 전체를 굵게 그린다(i18n.md 규칙 3,
+      코드 소유자).
+    -->
     <p
       v-if="layout.splitTextY !== null"
-      class="flow-fade absolute h-6 truncate text-ink-soft"
+      class="flow-fade absolute h-6 truncate font-semibold text-ink"
       :class="fade(nodeEmphasis(highlight, 'file'))"
       :style="{ left: px(G.innerX), top: px(layout.splitTextY), width: px(G.innerW) }"
     >
