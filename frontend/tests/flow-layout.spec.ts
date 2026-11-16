@@ -184,7 +184,7 @@ describe('시안(v6, flow34)의 좌표', () => {
     expect(found.captions.nodes).toEqual(['train'])
   })
 
-  it('군집이면 테스트 줄이 없고 결과 상자는 정해진 높이에 선다', () => {
+  it('군집화면 테스트 줄이 없고 결과 상자는 정해진 높이에 선다', () => {
     const found = layout(modelOf(withTask(projectFile(), 'clustering')))
     expect(found.boxes.p2).toBeUndefined()
     expect(found.boxes.eval?.y).toBe(G.evalFallbackY - G.boxH / 2)
@@ -431,7 +431,7 @@ describe('모델에 없는 것은 그리지 않는다', () => {
     },
   )
 
-  it('군집에는 테스트 쪽 상자와 선이 없다', () => {
+  it('군집화에는 테스트 쪽 상자와 선이 없다', () => {
     const model = modelOf(withTask(projectFile(), 'clustering'), 'preprocess')!
     const found = layoutOf(model, input())
     expect(found.boxes.p2).toBeUndefined()
@@ -519,6 +519,29 @@ describe('수를 모를 때', () => {
     expect(
       line.d.startsWith(`M${r1((train?.rect.x ?? 0) + (train?.rect.w ?? 0) / 2)},${train?.rect.y}`),
     ).toBe(true)
+  })
+
+  /**
+   * **수를 모르면 진한 막대가 하나도 없다**(결정 120) — 나누는 막대만이 아니라 전체 데이터·학습에 사용하는
+   * 데이터(군집화)·별도 테스트 막대도 윤곽이다. 진하면 "다 쓰인다"로 읽혀 숫자를 지어낸 것과 같다.
+   */
+  it('모든 경우에서 수를 모르면 막대가 전부 윤곽이고, 알면 진한 막대가 선다', () => {
+    const unknown = ALL.filter((entry) => entry.title.includes(' / 윤곽 / '))
+    const known = ALL.filter((entry) => entry.title.includes(' / 수 / '))
+    expect(unknown.length).toBeGreaterThan(0)
+    unknown.forEach(({ layout }, at) => {
+      const looks = layout.pieces.map((entry) => `${entry.node}:${entry.look}`)
+      expect(
+        looks.filter((look) => look.endsWith(':solid')),
+        `unknown layout #${at}`,
+      ).toEqual([])
+    })
+    known.forEach(({ layout }, at) => {
+      expect(
+        layout.pieces.some((entry) => entry.look === 'solid'),
+        `known layout #${at}`,
+      ).toBe(true)
+    })
   })
 
   it('파일 막대는 파란 한 조각이 막대를 채운다', () => {

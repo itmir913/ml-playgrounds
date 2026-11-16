@@ -85,8 +85,6 @@ export const FLOW_GEOMETRY = {
   captionTwo: 78,
   captionOne: 38,
 
-  /** 별도 테스트 데이터 카드: 막대는 파일 막대와 같은 자리에서 서고, 카드 밑은 막대 아래 안쪽 여백이다. */
-
   /** 새 데이터 카드. 파일 이름 줄이 있으면 칩이 그만큼 내려간다. */
   newName: 24,
   newChips: 32,
@@ -105,7 +103,7 @@ export const FLOW_GEOMETRY = {
   evalW: 114,
   /** 실험 원 밑에서 결과로 내려가는 선이 시작하는 틈. */
   expBottomGap: 2,
-  /** 군집·별도 테스트가 아닌 때 훈련 선이 나오는 분할 막대 위 자리(안쪽 폭의 몫). */
+  /** 나누지 않는 분할 막대(군집화·별도 테스트 데이터)에서 훈련 선이 나오는 자리(안쪽 폭의 몫). */
   trainShare: 0.4,
   /** 테스트 쪽 전처리 상자의 가운데가 분할 막대에서 내려가는 길이. */
   p2BelowSplit: 56,
@@ -113,7 +111,7 @@ export const FLOW_GEOMETRY = {
   basisLabelLeft: 10,
   /** 첫 줄(훈련 → 모델 → 예측)의 가운데 높이. */
   rowY: 140,
-  /** 결과 상자의 가운데 높이가 정해지지 않을 때(군집). */
+  /** 결과 상자의 가운데 높이가 정해지지 않을 때(군집화). */
   evalFallbackY: 300,
   /** 실험·예측 원. */
   expCx: 872,
@@ -138,7 +136,7 @@ export const FLOW_GEOMETRY = {
   trainFar: 190,
   trainFarRise: 90,
   trainJoinX: 406,
-  /** 군집에서 훈련 쪽 전처리 상자 밑으로 내려오는 선의 x(상자 왼쪽에서). */
+  /** 군집화에서 훈련 쪽 전처리 상자 밑으로 내려오는 선의 x(상자 왼쪽에서). */
   clusterDropX: 20,
   /** 선 끝과 상자·원 사이의 틈. 화살촉의 모양이 다르므로 끝마다 다르다. */
   gapEvalLeft: 4,
@@ -252,9 +250,9 @@ export interface FlowCardLayout {
 export interface FlowBarValues {
   readonly train: number
   readonly test: number
-  /** 전체 데이터 파일에서 안 쓰는 몫 — 사용할 수 없는 행과 추출하지 않은 행의 합. */
+  /** 전체 데이터 파일에서 사용하지 않는 몫 — 사용할 수 없는 행과 추출하지 않은 행의 합. */
   readonly gray: number
-  /** 별도 테스트 파일의 사용하는 몫과 안 쓰는 몫. 별도 테스트 데이터가 아니면 `null`이다. */
+  /** 별도 테스트 파일의 사용하는 몫과 사용하지 않는 몫. 별도 테스트 데이터가 아니면 `null`이다. */
   readonly testFile: { readonly usable: number; readonly gray: number } | null
 }
 
@@ -281,7 +279,7 @@ export interface FlowLayout {
     readonly dot: Point
     readonly label: Rect
   } | null
-  /** 분할 글자 줄(`분할 8 : 2`)의 윗변. 나누는 막대가 아니면 `null`이다. */
+  /** 분할 글자 줄(`분할 80 : 20`)의 윗변. 나누는 막대가 아니면 `null`이다. */
   readonly splitTextY: number | null
   /** 분할 막대 밑 이름 줄. 노드가 곧 조각의 이름이다. */
   readonly captions: { readonly y: number; readonly nodes: readonly FlowNodeId[] }
@@ -436,7 +434,7 @@ const ROUTES: Readonly<Partial<Record<string, (spots: Spots) => Route>>> = {
     ),
   'p2>eval': (s) =>
     horizontal(`M${P_RIGHT},${s.p2Y} H${EVAL_IN}`, { x: EVAL_IN, y: s.p2Y }, EVAL_IN - P_RIGHT),
-  // 군집: 결과가 훈련 쪽 전처리를 곧장 받는다. 상자 밑에서 내려와 결과 높이에서 꺾는다.
+  // 군집화: 결과가 훈련 쪽 전처리를 곧장 받는다. 상자 밑에서 내려와 결과 높이에서 꺾는다.
   'p1>eval': (s) => {
     const x = G.prepX + G.clusterDropX
     return horizontal(
@@ -508,7 +506,7 @@ export function isDrawnByBars(edge: Pick<FlowEdge, 'from' | 'to'>): boolean {
 
 /**
  * 모델을 좌표로 옮긴다. **모델에 없는 노드와 간선은 그리지 않는다** — 그 자리를 비워 두는 것이 아니라
- * 아예 값이 없다(`boxes.p2`는 군집에서 `undefined`다).
+ * 아예 값이 없다(`boxes.p2`는 군집화에서 `undefined`다).
  */
 export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   const has = (id: FlowNodeId): boolean => model.nodes.some((node) => node.id === id)
@@ -573,6 +571,9 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   // --- 막대 조각.
   const pieces: FlowPiece[] = []
   const known = bars !== null
+  // 수를 모르면 **모든 막대가 윤곽이다**(결정 120 "행 수는 열 때 구한다") — 진한 막대는 "다 쓰인다"로 읽히므로
+  // 숫자를 지어내는 것과 같다. 나누는 막대만이 아니라 전체 데이터·학습에 사용하는 데이터·별도 테스트 막대도 같다.
+  const barLook: FlowPieceLook = known ? 'solid' : 'outline'
   const used = !known ? 1 : holdout ? bars.train + bars.test : bars.train
   const fileSegments = segmentWidths([Math.max(used, 1), known ? bars.gray : 0], G.innerW, 0)
   const blue = fileSegments[0] ?? { x: 0, w: G.innerW }
@@ -604,7 +605,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
     )
   }
   pieces.push(
-    piece('file', 'file:bar', 'solid', 'fileBar', {
+    piece('file', 'file:bar', barLook, 'fileBar', {
       x: G.innerX + blue.x,
       y: fileBarY,
       w: blue.w,
@@ -626,12 +627,11 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   // 분할 막대: 나눌 때는 훈련·테스트 두 조각, 그 밖에는 한 조각이다.
   let trainCx: number
   let testCx: number | null = null
-  let trainOutline = false
+  const trainOutline = !known
   if (holdout) {
     const shares = known ? [bars.train, bars.test] : [1 - input.testSize, input.testSize]
     const split = segmentWidths(shares, G.innerW, G.barGap)
-    trainOutline = !known
-    const look: FlowPieceLook = known ? 'solid' : 'outline'
+    const look = barLook
     const train = split[0] ?? { x: 0, w: G.innerW }
     pieces.push(
       piece('train', null, look, 'splitBars', {
@@ -656,7 +656,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
     }
   } else {
     pieces.push(
-      piece('train', null, 'solid', 'splitBars', {
+      piece('train', null, barLook, 'splitBars', {
         x: G.innerX,
         y: splitY,
         w: G.innerW,
@@ -687,7 +687,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
       )
     }
     pieces.push(
-      piece('test', 'test:bar', 'solid', 'splitBars', {
+      piece('test', 'test:bar', testFile === null ? 'outline' : 'solid', 'splitBars', {
         x: G.innerX + testBlue.x,
         y: testBarY,
         w: testBlue.w,
