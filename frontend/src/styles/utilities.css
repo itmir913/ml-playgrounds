@@ -639,3 +639,135 @@
     word-break: auto-phrase;
   }
 }
+
+/*
+ * 프로젝트 흐름도의 색 (`architecture.md` §8.22, `open-decisions.md` 120).
+ *
+ * **토큰만 쓰고 섞을 때는 `color-mix(in srgb, …)`만 쓴다.** hex를 적지 않는다 — 배색이 라이트와 다크로
+ * 갈리는 값은 `theme.css`와 `dark.css`의 토큰이 갖고, 여기는 그 토큰을 섞는 식만 갖는다. 글자와 선의 대비는
+ * `tests/flow-contrast.spec.ts`가 두 배색에서 **이 식을 읽어서** 잰다 — 식을 고치면 그 검사가 다시 잰다.
+ *
+ * **흐르는 것마다 색이 하나다** (`flow-tint-*`가 `--flow`를 정한다). 선·화살촉·상자의 표지·카드 머리·원이
+ * 모두 그 한 값에서 나온다. 노드마다 색을 따로 적지 않는다.
+ *
+ * 움직임은 불투명도뿐이다 — 필터는 전환하지 않는다(빛 번짐은 켜질 때 바로 붙는다).
+ */
+@utility flow-tint-file {
+  --flow: var(--color-chart-2);
+}
+@utility flow-tint-train {
+  --flow: var(--color-chart-3);
+}
+@utility flow-tint-test {
+  --flow: var(--color-chart-6);
+}
+@utility flow-tint-new {
+  --flow: var(--color-chart-7);
+}
+@utility flow-tint-model {
+  --flow: var(--color-chart-5);
+}
+@utility flow-tint-basis {
+  --flow: var(--color-ink-faint);
+}
+
+/* 선과 화살촉. 윤곽(아직 안 한 일)은 점선이다. */
+@utility flow-stroke {
+  fill: none;
+  stroke: var(--flow);
+  stroke-linecap: round;
+}
+@utility flow-stroke-pending {
+  stroke-dasharray: 6 5;
+}
+@utility flow-fill {
+  fill: var(--flow);
+}
+
+/* 막대 조각: 평평한 색, 옅은 바깥 테, 윤곽일 때는 점선. */
+@utility flow-bar-halo {
+  fill: color-mix(in srgb, var(--flow) 14%, var(--color-surface));
+  stroke: color-mix(in srgb, var(--flow) 25%, transparent);
+}
+@utility flow-bar-outline {
+  fill: color-mix(in srgb, var(--flow) 6%, transparent);
+  stroke: var(--flow);
+  stroke-width: 1.5px;
+  stroke-dasharray: 6 5;
+}
+@utility flow-bar-gray {
+  fill: var(--color-line-strong);
+}
+
+/* 카드. 아직 안 한 단계의 카드는 점선이고 속이 비친다. */
+@utility flow-card {
+  fill: var(--color-surface);
+  stroke: var(--color-line);
+}
+@utility flow-card-pending {
+  fill: color-mix(in srgb, var(--color-surface) 45%, transparent);
+  stroke: var(--color-ink-faint);
+  stroke-dasharray: 6 5;
+}
+
+/* 글자. 머리는 흐르는 것의 색을 잉크에 섞고, 윤곽의 글자는 흐린 잉크를 진하게 섞는다. */
+@utility flow-text-head {
+  color: color-mix(in srgb, var(--flow) 58%, var(--color-ink));
+}
+@utility flow-text-dim {
+  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
+}
+
+/* 상자. 왼쪽 표지가 흐르는 것의 색이다. */
+@utility flow-node {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  color: var(--color-ink);
+}
+@utility flow-node-pending {
+  background: color-mix(in srgb, var(--color-surface) 45%, transparent);
+  border: 1px dashed var(--color-ink-faint);
+  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
+}
+@utility flow-node-mark {
+  background: var(--flow);
+}
+
+/* 원(실험·예측). */
+@utility flow-circle {
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--flow) 6%, var(--color-surface)),
+    color-mix(in srgb, var(--flow) 20%, var(--color-surface))
+  );
+  border: 2.5px solid color-mix(in srgb, var(--flow) 75%, transparent);
+  color: color-mix(in srgb, var(--flow) 38%, var(--color-ink));
+}
+@utility flow-circle-pending {
+  background: color-mix(in srgb, var(--flow) 5%, transparent);
+  border: 2px dashed var(--color-ink-faint);
+  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
+}
+
+/* 이름표(학습 상자 위). */
+@utility flow-tag {
+  background: color-mix(in srgb, var(--color-chart-5) 12%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-chart-5) 40%, transparent);
+  color: color-mix(in srgb, var(--color-chart-5) 50%, var(--color-ink));
+}
+
+/* 경로 강조. 흐려지는 것은 불투명도만 전환하고, 빛 번짐은 켜질 때 바로 붙는다. */
+@utility flow-fade {
+  transition: opacity 0.2s ease;
+}
+@utility flow-dim {
+  opacity: 0.12;
+}
+@utility flow-glow {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--flow) 60%, transparent));
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-fade {
+    transition: none;
+  }
+}
