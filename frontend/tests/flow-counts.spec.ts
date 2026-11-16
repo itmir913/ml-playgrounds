@@ -416,11 +416,16 @@ describe('이미지', () => {
     expect(await flowCountsOf(photos({}))).toBeNull()
   })
 
-  it('점검의 가벼운 입구도 계획 캐시를 안 채우고 같은 수를 낸다', async () => {
+  it('점검의 가벼운 입구는 계획 캐시를 안 채우고 사진도 행 수 없이 윤곽으로 둔다', async () => {
     const file = typed(photos(SHAPE), 'classification')
     const lite = flowCountsLite(file)
     expect(holdsTabularPlan()).toBe(false)
-    expect(lite).toEqual(await flowCountsOf(file))
+    const full = await flowCountsOf(file)
+    // 사진 수와 전처리 모양은 같고, 행 수 칸은 비어 있다.
+    expect(lite).toMatchObject({ total: full?.total, prep: 'backbone', featureCount: null })
+    for (const key of ['usable', 'sampled', 'train', 'test', 'unusable', 'notDrawn'] as const) {
+      expect(lite?.[key], key).toBeNull()
+    }
     expect(holdsTabularPlan()).toBe(false)
   })
 })

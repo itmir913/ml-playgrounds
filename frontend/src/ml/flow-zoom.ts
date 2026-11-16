@@ -60,13 +60,14 @@ export function fit(viewport: Size, canvas: Size): View {
 }
 
 /**
- * **창이 처음 열릴 때의 눈금.** 담기는 배율이 1 이상이면 담아서 가운데에 두고, 1보다 작으면 줄이지 않고
- * 배율 1로 데이터 패널의 왼쪽 위에서 시작한다 — 줄이면 글자가 가장 작은 글자 규칙을 깬다.
+ * **창이 처음 열릴 때의 눈금. 100%를 넘기지 않는다.** 담기는 배율이 1 이상이면 배율 1로 가운데에 두고
+ * (키워서 담지 않는다), 1보다 작으면 줄이지 않고 배율 1로 데이터 패널의 왼쪽 위에서 시작한다 — 줄이면 글자가
+ * 가장 작은 글자 규칙을 깬다. [전체 보기]는 따로다(`fit`).
  * `topInset`은 확대 막대가 위를 덮는 좁은 폭에서 판을 그만큼 내리는 길이다.
  */
 export function initialView(viewport: Size, canvas: Size, topInset = 0): View {
   const k = fitScale(viewport, canvas)
-  if (k >= 1) return centered(viewport, canvas, k)
+  if (k >= 1) return centered(viewport, canvas, 1)
   const margin = FLOW_GEOMETRY.startMargin
   return { k: 1, x: margin, y: margin + topInset }
 }

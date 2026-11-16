@@ -20,7 +20,7 @@ import { edgeKey, type FlowSegment } from '@/ml/flow-highlight'
 
 /**
  * 그림의 좌표와 크기. **캔버스 한 장의 좌표계이고 배율과 무관하다**(배율은 `ml/flow-zoom.ts`).
- * 값은 시안(v6)이 정하고, 바꾸려면 코드 소유자가 시안을 다시 본다.
+ * 값은 시안(v6)이 정하고, 바꾸려면 코드 소유자가 시안을 다시 본다. 학습 상자만 시안(flow34 좌표)과 달리 두 줄(이름·유형 칩)이라 높이를 키웠다(소유자 결정).
  */
 export const FLOW_GEOMETRY = {
   /** 캔버스 폭. 대시보드 카드가 이 폭보다 좁으면 그림 대신 열기 단추가 선다. */
@@ -35,6 +35,14 @@ export const FLOW_GEOMETRY = {
   cardTop: 30,
   innerX: 54,
   innerW: 292,
+  /**
+   * 데이터 카드의 안쪽 여백 — **위·아래·왼쪽·오른쪽이 이 한 값이다.** 안쪽 가로 자리(`innerX`·`innerW`)가 이 값에서
+   * 나오고(`flow-layout.spec.ts`가 같음을 문다), 세로는 첫 줄의 윗변과 마지막 줄의 아랫변이 이만큼 안쪽에 선다.
+   * 카드 높이는 내용에서 계산한다 — 고정 높이가 아니다.
+   */
+  cardPad: 24,
+  /** 카드 안 글자 한 줄의 높이. */
+  lineH: 24,
   /** 카드 사이의 틈. */
   cardGap: 20,
 
@@ -50,55 +58,61 @@ export const FLOW_GEOMETRY = {
   hitMin: 24,
   /** 파란 조각의 바깥 테 두께. 누르는 자리가 이만큼 넓다. */
   barHalo: 2,
+  /** 막대와 조각의 모서리 반지름. 막대 높이의 1/5 — 완전한 반원이면 작은 조각이 원 하나로 읽혔다. 바깥 테는 이 값에 테 두께를 더한다. */
+  barRadius: 4,
+  /**
+   * **아직 안 한 일의 윤곽(상자·원·칩·카드·막대, 점선 선)은 한 문법이다.** 굵기와 점선의 길이·간격이 이 셋이고 색은
+   * \`flow-outline\`(utilities.css) 한 곳이다. 점선 간선도 같은 점선 리듬을 쓴다 — 선과 윤곽이 한 그림 안에서 같은
+   * 박자로 읽히게 하려는 것이고, 선은 굵기만 다르다(\`stroke\`).
+   */
+  pendingStroke: 1.5,
+  pendingDashOn: 6,
+  pendingDashOff: 5,
+  /** 상자의 모서리(\`rounded-control\`)와 칩의 모서리(\`rounded-2xl\`) — 윤곽이 HTML 가장자리와 겹치게 같은 값이다. */
+  boxRadius: 8,
+  chipRadius: 16,
 
-  /** 전체 데이터 카드 안의 세로 자리(카드 윗변에서). */
-  head: 14,
-  nameRow: 44,
-  chipsRow: 74,
+  /** 데이터 카드 안의 세로 자리(안쪽 여백 안의 첫 줄 윗변에서). */
+  nameRow: 30,
+  chipsRow: 60,
   /** 칩이 두 줄로 꺾일 때 아래로 미는 길이. */
   chipWrapShift: 18,
-  /** 파일 막대의 윗변(칩이 한 줄일 때)과 파일 막대에서 분할 막대까지. */
-  fileBarY: 154,
+  /** 파일 막대의 윗변(칩이 한 줄일 때, 안쪽 첫 줄 윗변에서)과 파일 막대에서 분할 막대까지. */
+  fileBarOffset: 110,
   fileToSplit: 90,
-  /** 분할 막대 아래: 분할 글자 줄, 이름 줄(막대가 둘일 때와 하나일 때), 카드 밑. */
+  /** 분할 막대 아래: 분할 글자 줄과 이름 줄(막대가 둘일 때와 하나일 때). 카드 밑은 이름 줄 아래 안쪽 여백이다. */
   splitText: 34,
   captionTwo: 78,
   captionOne: 38,
-  wholeBottomTwo: 146,
-  wholeBottomOne: 78,
 
-  /** 별도 테스트 데이터 카드: 막대까지와 막대 밑으로. */
-  testBarOffset: 124,
-  testBottom: 40,
+  /** 별도 테스트 데이터 카드: 막대는 파일 막대와 같은 자리에서 서고, 카드 밑은 막대 아래 안쪽 여백이다. */
 
   /** 새 데이터 카드. 파일 이름 줄이 있으면 칩이 그만큼 내려간다. */
-  newHead: 16,
-  newName: 40,
-  newChips: 48,
+  newName: 24,
+  newChips: 32,
   newNameShift: 22,
   newChipH: 30,
-  newBottomPad: 18,
 
   /** 가운데 열: 전처리 상자, 학습, 결과. */
   boxH: 52,
   prepX: 430,
-  prepW: 172,
-  learnX: 650,
-  learnW: 114,
-  evalX: 793,
+  prepW: 150,
+  // 학습 상자는 두 줄(이름과 유형 칩)이고 칩이 세 로케일의 가장 긴 유형 이름(en Classification, ja クラスタリング)을 통째로 담는 폭이다.
+  // 넓어진 만큼은 전처리 상자의 폭과 열 간격, 실험·예측 원의 간격에서 흡수해 캔버스 폭은 그대로다.
+  learnX: 608,
+  learnW: 190,
+  evalX: 815,
   evalW: 114,
   /** 첫 줄(훈련 → 모델 → 예측)의 가운데 높이. */
   rowY: 140,
   /** 결과 상자의 가운데 높이가 정해지지 않을 때(군집). */
   evalFallbackY: 300,
   /** 실험·예측 원. */
-  expCx: 850,
-  predCx: 1010,
+  expCx: 872,
+  predCx: 1022,
   circleR: 46,
-  /** 이름표(학습 상자 위). */
-  tagLeft: 12,
-  tagRise: 22,
-  tagH: 26,
+  /** 학습 상자만 두 줄(이름과 유형 칩)이라 키운다. 가운데 높이는 다른 상자와 같아 선의 끝점이 그대로다. */
+  learnH: 80,
 
   /** 선. 굵기는 평소와 강조일 때다. 꺾임의 반지름과 화살촉의 크기. */
   stroke: 2,
@@ -132,6 +146,22 @@ export const FLOW_GEOMETRY = {
   basisDot: 3.5,
   basisLabelDrop: 38,
   basisLabelW: 260,
+
+  /** 칩 줄의 두 칸 폭(전체 데이터·테스트 카드). 새 데이터 카드는 한 칸이다. */
+  chipColA: 144,
+  chipColB: 136,
+  /** 카드 모서리. 선 밑에 까는 바탕색 굵은 선의 굵기. */
+  cardRadius: 14,
+  haloStroke: 6,
+  /** 깔때기 두 가장자리 선의 굵기와 점선(켜짐·꺼짐), 채움과 선의 불투명도. */
+  railStroke: 1.5,
+  railDashOn: 3,
+  railDashOff: 3,
+  funnelFillOpacity: 0.15,
+  railOpacity: 0.6,
+  /** 화살촉이 선 끝에서 물러서 앉는 자리(마커 좌표계, 촉 10칸 중). */
+  arrowRefX: 8,
+  arrowRefY: 5,
 } as const
 
 // 최소 조각이 막대보다 높으면 조각이 길쭉한 알이 되어 비례를 거짓으로 말한다. 모듈이 뜰 때 바로 깨뜨린다.
@@ -247,7 +277,6 @@ export interface FlowLayout {
   readonly captions: { readonly y: number; readonly nodes: readonly FlowNodeId[] }
   readonly boxes: Readonly<Partial<Record<'p1' | 'p2' | 'p3' | 'learn' | 'eval', Rect>>>
   readonly circles: Readonly<Record<'exp' | 'pred', Rect>>
-  readonly tag: Rect
 }
 
 const G = FLOW_GEOMETRY
@@ -312,8 +341,8 @@ function hitOf(rect: Rect, pad: number): Rect {
   }
 }
 
-function boxOf(x: number, cy: number, w: number): Rect {
-  return { x, y: cy - G.boxH / 2, w, h: G.boxH }
+function boxOf(x: number, cy: number, w: number, h: number = G.boxH): Rect {
+  return { x, y: cy - h / 2, w, h }
 }
 
 function circleOf(cx: number, cy: number): Rect {
@@ -478,9 +507,10 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   const bars = input.bars
 
   // --- 전체 데이터 카드.
-  const fileBarY = G.fileBarY + shift
+  const inner0 = G.cardTop + G.cardPad
+  const fileBarY = inner0 + G.fileBarOffset + shift
   const splitY = fileBarY + G.fileToSplit
-  const wholeBottom = splitY + (holdout ? G.wholeBottomTwo : G.wholeBottomOne)
+  const wholeBottom = splitY + (holdout ? G.captionTwo : G.captionOne) + G.lineH + G.cardPad
   const splitTextY = holdout ? splitY + G.splitText : null
   const captionY = splitY + (holdout ? G.captionTwo : G.captionOne)
   let cursor = wholeBottom + G.cardGap
@@ -490,9 +520,9 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
       id: 'whole',
       node: 'file',
       rect: { x: G.cardX, y: G.cardTop, w: G.cardW, h: wholeBottom - G.cardTop },
-      headY: G.cardTop + G.head,
-      nameY: G.cardTop + G.nameRow,
-      chipsY: G.cardTop + G.chipsRow,
+      headY: inner0,
+      nameY: inner0 + G.nameRow,
+      chipsY: inner0 + G.chipsRow,
     },
   ]
 
@@ -500,29 +530,31 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   let testBarY: number | null = null
   if (model.provided) {
     const top = cursor
-    testBarY = top + G.testBarOffset + shift
-    const bottom = testBarY + G.testBottom
+    const top0 = top + G.cardPad
+    testBarY = top0 + G.fileBarOffset + shift
+    const bottom = testBarY + G.barH + G.cardPad
     cards.push({
       id: 'testFile',
       node: 'test',
       rect: { x: G.cardX, y: top, w: G.cardW, h: bottom - top },
-      headY: top + G.head,
-      nameY: top + G.nameRow,
-      chipsY: top + G.chipsRow,
+      headY: top0,
+      nameY: top0 + G.nameRow,
+      chipsY: top0 + G.chipsRow,
     })
     cursor = bottom + G.cardGap
   }
 
   // --- 새 데이터 카드.
   const named = model.cards.find((card) => card.id === 'new')?.fileName !== undefined
-  const newChipsY = cursor + G.newChips + (named ? G.newNameShift : 0)
-  const newBottom = newChipsY + G.newChipH + G.newBottomPad
+  const newTop = cursor + G.cardPad
+  const newChipsY = newTop + G.newChips + (named ? G.newNameShift : 0)
+  const newBottom = newChipsY + G.newChipH + G.cardPad
   cards.push({
     id: 'new',
     node: 'new',
     rect: { x: G.cardX, y: cursor, w: G.cardW, h: newBottom - cursor },
-    headY: cursor + G.newHead,
-    nameY: named ? cursor + G.newName : null,
+    headY: newTop,
+    nameY: named ? newTop + G.newName : null,
     chipsY: newChipsY,
   })
 
@@ -715,7 +747,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   const boxes: Partial<Record<'p1' | 'p2' | 'p3' | 'learn' | 'eval', Rect>> = {
     p1: boxOf(G.prepX, p1Y, G.prepW),
     p3: boxOf(G.prepX, p3Y, G.prepW),
-    learn: boxOf(G.learnX, p1Y, G.learnW),
+    learn: boxOf(G.learnX, p1Y, G.learnW, G.learnH),
     eval: boxOf(G.evalX, evalY, G.evalW),
   }
   if (has('p2')) boxes.p2 = boxOf(G.prepX, p2Y, G.prepW)
@@ -732,11 +764,5 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
     captions: { y: captionY, nodes: holdout ? ['train', 'test'] : ['train'] },
     boxes,
     circles: { exp: circleOf(G.expCx, p1Y), pred: circleOf(G.predCx, p1Y) },
-    tag: {
-      x: G.learnX + G.tagLeft,
-      y: p1Y - G.boxH / 2 - G.tagRise,
-      w: G.learnW - G.tagLeft,
-      h: G.tagH,
-    },
   }
 }

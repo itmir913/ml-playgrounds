@@ -615,6 +615,11 @@ const GATES = {
     input.projectOpen
       ? stepBlockers(input.step, input.facts, input.taskType, input.dataType)
       : (['NO_PROJECT'] as const),
+  /**
+   * 프로젝트 흐름도를 여는 단추 (`architecture.md` §8.22). **올린 데이터가 없으면 그릴 것이 없다** — 이유와 함께
+   * 남기고(`announce`), 누르면 이유가 선다. 재료는 데이터가 준비됐는가 하나다(`ProjectFacts.datasetReady`).
+   */
+  flow: (input: { readonly dataReady: boolean }) => (input.dataReady ? [] : (['NO_DATA'] as const)),
   /** 쪽 넘기기의 처음 (끝에 닿음). */
   pageFirst: (input: { readonly page: number }) =>
     input.page <= 0 ? (['FIRST_PAGE'] as const) : [],

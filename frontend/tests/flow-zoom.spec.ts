@@ -85,8 +85,13 @@ describe('전체 보기', () => {
 })
 
 describe('첫 화면', () => {
-  it('담기고도 남으면 담아서 가운데에 둔다', () => {
-    expect(initialView(BIG, CANVAS)).toEqual(fit(BIG, CANVAS))
+  it('담기고도 남으면 키우지 않고 배율 1로 가운데에 둔다', () => {
+    const view = initialView(BIG, CANVAS)
+    expect(view.k).toBe(1)
+    expect(view.x).toBe((BIG.w - CANVAS.w) / 2)
+    expect(view.y).toBe((BIG.h - CANVAS.h) / 2)
+    // 전체 보기는 학생이 고른 것이라 맞춤 그대로다.
+    expect(fit(BIG, CANVAS).k).toBeGreaterThan(1)
   })
 
   it('담기지 않으면 줄이지 않고 배율 1로 판의 왼쪽 위에서 시작한다', () => {
@@ -99,14 +104,14 @@ describe('첫 화면', () => {
     expect(view.y).toBe(FLOW_GEOMETRY.startMargin + 52)
     expect(view.k).toBe(1)
     // 담기는 화면에서는 내리지 않는다 — 가운데가 이미 막대 밑이다.
-    expect(initialView(BIG, CANVAS, 52)).toEqual(fit(BIG, CANVAS))
+    expect(initialView(BIG, CANVAS, 52)).toEqual(initialView(BIG, CANVAS))
   })
 
   it('담기는 배율이 정확히 1이면 담는 쪽이다', () => {
     const pad = FLOW_GEOMETRY.fitPadding * 2
     const exact = { w: CANVAS.w + pad, h: CANVAS.h + pad }
-    expect(initialView(exact, CANVAS).k).toBeCloseTo(1, 9)
-    expect(initialView(exact, CANVAS)).toEqual(fit(exact, CANVAS))
+    expect(initialView(exact, CANVAS).k).toBe(1)
+    expect(initialView(exact, CANVAS)).toEqual({ k: 1, x: pad / 2, y: pad / 2 })
   })
 })
 

@@ -11,7 +11,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { FLOW_HOVER_RELEASE_MS } from '../src/limits'
+import { FLOW_HOVER_LINGER_MS, FLOW_HOVER_RELEASE_MS } from '../src/limits'
 import {
   HOVER_IDLE,
   hoverStep,
@@ -55,6 +55,52 @@ describe('가리킴', () => {
     expect(clock.scheduled).toBeNull()
   })
 
+  it('노드를 떠나면 느린 풀림이 예약된다 — 빈 곳에 머물면 조금 뒤에 풀린다', () => {
+    const clock = new Clock()
+    clock.send({ kind: 'enter', target: 'file' })
+    const step = clock.send({ kind: 'leaveNode' })
+    expect(clock.state.shown).toBe('file')
+    expect(step.timer).toEqual({ start: FLOW_HOVER_LINGER_MS })
+    clock.fire()
+    expect(clock.state.shown).toBeNull()
+  })
+
+  it('느린 풀림이 걸려 있을 때 노드를 또 떠나도 다시 걸지 않는다', () => {
+    const clock = new Clock()
+    clock.send({ kind: 'enter', target: 'file' })
+    clock.send({ kind: 'leaveNode' })
+    expect(clock.send({ kind: 'leaveNode' }).timer).toBeNull()
+  })
+
+  it('그림을 떠나면 노드 쪽 예약이 있어도 짧은 쪽으로 다시 걸고, 짧은 예약은 길게 안 되돌린다', () => {
+    const clock = new Clock()
+    clock.send({ kind: 'enter', target: 'file' })
+    clock.send({ kind: 'leaveNode' })
+    expect(clock.send({ kind: 'leave' }).timer).toEqual({ start: FLOW_HOVER_RELEASE_MS })
+    expect(clock.send({ kind: 'leaveNode' }).timer).toBeNull()
+    expect(clock.send({ kind: 'leave' }).timer).toBeNull()
+    expect(FLOW_HOVER_LINGER_MS).toBeGreaterThan(FLOW_HOVER_RELEASE_MS)
+  })
+
+  it('느린 풀림 안에 같은 노드나 다른 노드에 들어서면 취소되고 그 노드가 켜진다', () => {
+    const clock = new Clock()
+    clock.send({ kind: 'enter', target: 'file' })
+    clock.send({ kind: 'leaveNode' })
+    expect(clock.send({ kind: 'enter', target: 'file' }).timer).toBe('cancel')
+    clock.send({ kind: 'leaveNode' })
+    expect(clock.send({ kind: 'enter', target: 'train' }).timer).toBe('cancel')
+    expect(clock.state.shown).toBe('train')
+    clock.fire()
+    expect(clock.state.shown).toBe('train')
+  })
+
+  it('고정된 동안은 노드를 떠나도 아무 일이 없다', () => {
+    const clock = new Clock()
+    clock.send({ kind: 'pin', target: 'file' })
+    expect(clock.send({ kind: 'leaveNode' })).toEqual({ state: clock.state, timer: null })
+    expect(clock.state.shown).toBe('file')
+  })
+
   it('노드를 떠나도 바로 풀리지 않고 풀림이 예약된다', () => {
     const clock = new Clock()
     clock.send({ kind: 'enter', target: 'file' })
@@ -79,7 +125,7 @@ describe('가리킴', () => {
     const step = clock.send({ kind: 'enter', target: 'learn' })
     expect(step.timer).toBe('cancel')
     expect(clock.scheduled).toBeNull()
-    expect(clock.state).toEqual({ shown: 'learn', pinned: null, releasing: false })
+    expect(clock.state).toEqual({ shown: 'learn', pinned: null, releasing: false, quick: false })
   })
 
   it('취소한 뒤 낡은 시간이 늦게 도착해도 새 노드의 강조가 풀리지 않는다', () => {
@@ -97,7 +143,7 @@ describe('가리킴', () => {
     clock.send({ kind: 'enter', target: 'file' })
     clock.send({ kind: 'leave' })
     expect(clock.send({ kind: 'enter', target: 'file' }).timer).toBe('cancel')
-    expect(clock.state).toEqual({ shown: 'file', pinned: null, releasing: false })
+    expect(clock.state).toEqual({ shown: 'file', pinned: null, releasing: false, quick: false })
   })
 
   it('떠남이 겹쳐도 타이머는 한 번만 건다', () => {
@@ -152,7 +198,7 @@ describe('고정', () => {
   it('누르면 그 대상이 고정되고 가리킴이 바꾸지 못한다', () => {
     const clock = new Clock()
     clock.send({ kind: 'pin', target: 'exp' })
-    expect(clock.state).toEqual({ shown: 'exp', pinned: 'exp', releasing: false })
+    expect(clock.state).toEqual({ shown: 'exp', pinned: 'exp', releasing: false, quick: false })
     expect(clock.send({ kind: 'enter', target: 'file' })).toEqual({
       state: clock.state,
       timer: null,
@@ -179,7 +225,7 @@ describe('고정', () => {
   })
 
   it('고정을 풀 때 예약이 남아 있으면 거둔다', () => {
-    const state: HoverState = { shown: 'a', pinned: 'a', releasing: true }
+    const state: HoverState = { shown: 'a', pinned: 'a', releasing: true, quick: false }
     expect(hoverStep(state, { kind: 'unpin' })).toEqual({ state: HOVER_IDLE, timer: 'cancel' })
   })
 })
@@ -189,6 +235,7 @@ describe('모든 짧은 순서에서 지켜지는 것', () => {
     { kind: 'enter', target: 'a' },
     { kind: 'enter', target: 'b' },
     { kind: 'leave' },
+    { kind: 'leaveNode' },
     { kind: 'release' },
     { kind: 'pin', target: 'a' },
     { kind: 'unpin' },
@@ -231,7 +278,8 @@ describe('모든 짧은 순서에서 지켜지는 것', () => {
         if (state.pinned !== null) expect(state.shown, key).toBe(state.pinned)
         // 타이머 지시는 예약의 변화와 맞는다.
         if (step.timer !== null && step.timer !== 'cancel') {
-          expect(before.releasing, key).toBe(false)
+          // 느린 예약을 짧은 쪽으로 다시 거는 것만 예약이 이미 있던 채로 시작한다.
+          expect(before.releasing && !(event.kind === 'leave' && !before.quick), key).toBe(false)
           expect(state.releasing, key).toBe(true)
         }
         if (step.timer === 'cancel') {

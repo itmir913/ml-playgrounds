@@ -211,6 +211,30 @@ describe.each(THEMES)('%s에서의 대비', (file) => {
     expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 
+  it('칩의 테두리가 상자·카드 바탕과 3 이상이고 글자가 칩 바탕 위에서 4.5 이상이다', () => {
+    const context = under(surface, tintToken('train'))
+    const border = evaluate(declaration('flow-chip', 'border-color'), context)
+    expect(contrast(border, surface), `${file} chip border`).toBeGreaterThanOrEqual(3)
+    const text = contrast(
+      evaluate(declaration('flow-chip', 'color'), context),
+      evaluate(declaration('flow-chip', 'background'), context),
+    )
+    expect(text, `${file} chip text`).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('점선 윤곽의 선이 비친 그림 바탕과 3 이상이고 흐린 칩 글자가 4.5 이상이다', () => {
+    const context = under(sunken, tintToken('train'))
+    // 상자·원·칩·카드의 윤곽은 모두 `flow-outline` 한 색이다.
+    const stroke = evaluate(declaration('flow-outline', 'stroke'), context)
+    expect(contrast(stroke, sunken), `${file} outline`).toBeGreaterThanOrEqual(3)
+    expect(declaration('flow-card-pending', 'stroke')).toBe(declaration('flow-outline', 'stroke'))
+    const text = contrast(
+      evaluate(declaration('flow-chip-pending', 'color'), context),
+      evaluate(declaration('flow-chip-pending', 'background'), context),
+    )
+    expect(text, `${file} pending chip text`).toBeGreaterThanOrEqual(4.5)
+  })
+
   it('상자의 글자가 상자 바탕 위에서 4.5 이상이다', () => {
     const context = under(sunken, tintToken('train'))
     const solid = contrast(

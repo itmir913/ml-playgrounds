@@ -206,6 +206,11 @@ const SPLIT_FLOW: Readonly<Record<SplitMethod, { readonly testFromFile: boolean 
   provided: { testFromFile: true },
 }
 
+/** 이 분할 방식은 테스트 데이터를 따로 올린 파일에서 가져오는가. 수를 세는 쪽(`ml/flow-counts.ts`)도 같은 표를 묻는다. */
+export function splitTestFromFile(method: SplitMethod): boolean {
+  return SPLIT_FLOW[method].testFromFile
+}
+
 /** 간선을 만들 때 묻는 사정. */
 interface EdgeContext {
   readonly splitsData: boolean
@@ -305,7 +310,7 @@ export function flowModelOf(
 
   const splits = splitsData(taskType)
   const targeted = usesTarget(taskType)
-  const provided = splits && SPLIT_FLOW[settings.split.method].testFromFile
+  const provided = splits && splitTestFromFile(settings.split.method)
   const prepKind = kind.prepOf(prep)
   const basis = hasBasis(prepKind)
 
@@ -392,7 +397,7 @@ export function flowModelOf(
     parents,
     splitsData: splits,
     provided,
-    splits: splits && settings.split.method === 'holdout',
+    splits: splits && !splitTestFromFile(settings.split.method),
     prep: prepKind,
     experimentCount: experiments.length,
     taskLabelKey: FLOW_TASK_LABEL_KEYS[taskType ?? 'unset'],

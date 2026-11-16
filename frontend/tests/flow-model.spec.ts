@@ -15,6 +15,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  FLOW_ALL_LABEL_KEYS,
   FLOW_FLOWS,
   FLOW_KINDS,
   FLOW_LABEL_KEYS,
@@ -27,6 +28,7 @@ import {
 import type { ProjectFile } from '../src/project/format'
 import { DATA_TYPES, TASK_TYPES } from '../src/project/schema'
 import { NO_FACTS } from '../src/router/steps'
+import { LOCALE_MESSAGES, LOCALE_TAGS } from './fixtures/locales'
 import {
   edit,
   failed,
@@ -392,6 +394,18 @@ describe('이 모듈은 흐름도 밖을 들이지 않는다', () => {
 })
 
 describe('로케일', () => {
-  // C13에서 `flow.*` 문구가 세 로케일에 들어오면 켠다. 지금 켜면 아직 없는 키 때문에 빨갛다.
-  it.todo('FLOW_LABEL_KEYS와 FLOW_TASK_LABEL_KEYS의 값이 세 로케일에 모두 있다')
+  it('FLOW_LABEL_KEYS와 FLOW_TASK_LABEL_KEYS의 값이 세 로케일에 모두 있다', () => {
+    expect(LOCALE_TAGS.length).toBeGreaterThanOrEqual(3)
+    for (const tag of LOCALE_TAGS) {
+      const messages = LOCALE_MESSAGES.get(tag)
+      const missing = FLOW_ALL_LABEL_KEYS.filter((key) => !messages?.has(key))
+      expect(missing, `${tag}: keys the flow model asks of the locale`).toEqual([])
+    }
+  })
+
+  it('요구하는 키의 목록이 비어 있지 않다 — 비면 위 검사가 아무것도 안 문다', () => {
+    expect(FLOW_ALL_LABEL_KEYS.length).toBeGreaterThanOrEqual(
+      Object.keys(FLOW_LABEL_KEYS).length + Object.keys(FLOW_TASK_LABEL_KEYS).length,
+    )
+  })
 })

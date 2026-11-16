@@ -83,21 +83,82 @@ describe('시안(v6, flow34)의 좌표', () => {
   it('표 · 분류 · holdout: 카드와 상자 행이 시안과 같다', () => {
     const found = layout(modelOf(projectFile()))
     const [whole, fresh] = found.cards
-    expect(whole?.rect).toEqual({ x: 30, y: 30, w: 340, h: 360 }) // 30 ~ 390
-    expect(fresh?.rect.y).toBe(410)
+    expect(whole?.rect).toEqual({ x: 30, y: 30, w: 340, h: 350 }) // 30 ~ 380
+    expect(fresh?.rect.y).toBe(400)
     expect(found.boxes.p1?.y).toBe(140 - 26)
-    expect(found.boxes.p2?.y).toBe(300 - 26)
-    expect(found.boxes.p3?.y).toBe(458 - 26)
-    expect(found.height).toBe(536)
+    expect(found.boxes.p2?.y).toBe(310 - 26)
+    expect(found.boxes.p3?.y).toBe(456 - 26)
+    expect(found.height).toBe(540)
     expect(found.width).toBe(1100)
+  })
+
+  describe('데이터 카드의 안쪽 여백은 위·아래·좌우가 같다', () => {
+    const CASES: [string, () => ReturnType<typeof modelOf>][] = [
+      ['표 · holdout', () => modelOf(projectFile())],
+      ['표 · 별도 테스트 데이터', () => modelOf(projectFileWithTestDataset())],
+      ['새 데이터 파일 이름', () => modelOf(projectFileWithPredictDataset())],
+      ['군집화', () => modelOf(withTask(projectFile(), 'clustering'))],
+    ]
+
+    it('가로: 카드 안쪽 자리가 여백 하나로 서 있다', () => {
+      expect(G.innerX - G.cardX).toBe(G.cardPad)
+      expect(G.cardX + G.cardW - (G.innerX + G.innerW)).toBe(G.cardPad)
+    })
+
+    for (const [name, build] of CASES) {
+      for (const chipWrap of [false, true]) {
+        it(`세로: ${name}${chipWrap ? ' · 칩이 두 줄' : ''} — 위 여백과 아래 여백이 안쪽 여백이다`, () => {
+          const found = layout(build(), {
+            chipWrap,
+            bars: { train: 8, test: 2, gray: 1, testFile: { usable: 3, gray: 1 } },
+          })
+          expect(found.cards.length).toBeGreaterThanOrEqual(2)
+          for (const card of found.cards) {
+            const top = card.headY - card.rect.y
+            expect(top, `${card.id} top`).toBe(G.cardPad)
+            const bottom = card.rect.y + card.rect.h
+            // 마지막 줄의 아랫변: 전체 데이터는 이름 줄, 별도 테스트는 막대, 새 데이터는 칩.
+            const last =
+              card.id === 'whole'
+                ? found.captions.y + G.lineH
+                : card.id === 'testFile'
+                  ? Math.max(
+                      ...found.pieces
+                        .filter(
+                          (p) => p.node === 'test' && p.layer === 'splitBars' && p.segment !== null,
+                        )
+                        .map((p) => p.rect.y + p.rect.h),
+                    )
+                  : card.chipsY + G.newChipH
+            expect(bottom - last, `${card.id} bottom`).toBe(G.cardPad)
+          }
+        })
+      }
+    }
+
+    it('카드 사이는 틈 하나이고 그림 높이는 마지막 카드와 밑 여백에서 나온다', () => {
+      const found = layout(modelOf(projectFileWithTestDataset()), {})
+      for (let at = 1; at < found.cards.length; at += 1) {
+        const before = found.cards[at - 1]!.rect
+        expect(found.cards[at]!.rect.y - (before.y + before.h)).toBe(G.cardGap)
+      }
+      const last = found.cards.at(-1)!.rect
+      expect(found.height).toBe(Math.max(last.y + last.h, G.minHeight) + G.bottomPad)
+    })
+  })
+
+  it('막대의 모서리는 조금만 둥글다 — 가장 작은 조각도 사각형으로 읽힌다', () => {
+    expect(G.barRadius).toBeGreaterThan(0)
+    expect(G.barRadius * 2).toBeLessThan(G.barH / 2)
+    expect(G.barRadius * 2).toBeLessThan(FLOW_MIN_SEGMENT_PX)
   })
 
   it('새 데이터 카드에 파일 이름이 있으면 칩이 그만큼 내려가 높이가 는다', () => {
     const named = layout(modelOf(projectFileWithPredictDataset()))
     const plain = layout(modelOf(projectFile()))
-    expect(named.boxes.p3?.y).toBe(480 - 26)
+    expect(named.boxes.p3?.y).toBe(478 - 26)
     expect(named.height).toBe(plain.height + G.newNameShift)
-    expect(named.cards.at(-1)?.nameY).toBe(410 + 40)
+    expect(named.cards.at(-1)?.nameY).toBe(424 + 24)
     expect(plain.cards.at(-1)?.nameY).toBeNull()
   })
 
@@ -126,12 +187,16 @@ describe('시안(v6, flow34)의 좌표', () => {
     expect(found.captions.nodes).toEqual(['train'])
   })
 
-  it('원과 이름표의 자리', () => {
+  it('원의 자리와 두 줄로 큰 학습 상자', () => {
     const found = layout(modelOf(projectFile()), {})
-    expect(found.circles.exp).toEqual({ x: 850 - 46, y: 140 - 46, w: 92, h: 92 })
-    expect(found.circles.pred.x).toBe(1010 - 46)
-    expect(found.tag.x).toBe(650 + 12)
-    expect(found.tag.y).toBe(140 - 26 - 22)
+    expect(found.circles.exp).toEqual({ x: 872 - 46, y: 140 - 46, w: 92, h: 92 })
+    expect(found.circles.pred.x).toBe(1022 - 46)
+    // 학습 상자는 두 줄이라 다른 상자보다 크지만 가운데 높이는 같다 — 들어오고 나가는 선의 끝점이 그대로다.
+    const learn = found.boxes.learn!
+    expect(learn.h).toBe(G.learnH)
+    expect(learn.h).toBeGreaterThan(G.boxH)
+    expect(learn.y + learn.h / 2).toBe(140)
+    expect(found.boxes.p1!.y + G.boxH / 2).toBe(140)
   })
 })
 

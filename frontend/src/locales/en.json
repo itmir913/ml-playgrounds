@@ -1193,5 +1193,38 @@
       "noModel": "There is no model to predict with. Train a model in the training step, then predict.",
       "noUsableModel": "None of these models can make a prediction. Check the reason shown for each model."
     }
+  },
+  "flow": {
+    "title": "Project flow diagram",
+    "whole": "Whole data",
+    "train": "Training data",
+    "newData": "New data",
+    "usable": "Data used for training",
+    "usedData": "Data in use",
+    "grayData": "Data not used",
+    "experiment": "Experi\u00adments",
+    "openFlow": "Open project flow diagram",
+    "enlarge": "Enlarge",
+    "fit": "Show all",
+    "basisWhole": "From the data used for training",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "splitName": "Split",
+    "split": "{label} {train} : {test}",
+    "splitPending": "{label} undecided",
+    "task": {
+      "classification": "Classification",
+      "regression": "Regression",
+      "clustering": "Clustering",
+      "unset": "Not chosen"
+    },
+    "tabular": {
+      "features": "{count} feature | {count} features",
+      "targetSet": "Target set"
+    },
+    "image": {
+      "features": "Photos",
+      "targetSet": "Category set"
+    }
   }
 }

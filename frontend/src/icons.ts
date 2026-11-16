@@ -42,8 +42,12 @@ import {
   Sun,
   Table2,
   Trash2,
+  Maximize,
   Undo2,
+  Workflow,
   X,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon,
 } from 'lucide-vue-next'
 
@@ -131,4 +135,10 @@ export const ACTION_ICONS = {
    * 설명이 딸린 팝오버가 열리기 때문이다. 그림은 동작이 아니라 대상을 가리킨다.
    */
   limits: Gauge,
+  /** 프로젝트 흐름도를 연다 (`architecture.md` §8.22). 가지가 갈라졌다 모이는 그림이다. */
+  openFlow: Workflow,
+  /** 흐름도 창의 확대·축소와 전체 보기. 글자 이름은 번역이 갖고 이 그림은 곁들임이다. */
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
+  fitAll: Maximize,
 } as const satisfies Record<string, LucideIcon>

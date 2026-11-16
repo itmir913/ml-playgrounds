@@ -27,6 +27,8 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/components/AppButton.vue'
+import FlowCard from '@/components/flow/FlowCard.vue'
+import FlowGuard from '@/components/flow/FlowGuard.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { dataKindFor, lockedSentenceFor, stepTextKey } from '@/data/kinds'
@@ -285,5 +287,14 @@ function lockedText(step: StepId): string {
         <ProjectSummary v-if="project.file" :file="project.file" />
       </aside>
     </div>
+
+    <!--
+      **맨 아래의 전체 너비 카드다** (§8.22). 프로젝트 전체를 보는 자리라 그림이 가장 자연스럽게 맞는다. 다른
+      단계에는 두지 않는다 — 도구 막대의 단추가 어느 단계에서나 같은 창을 연다. 받은 폭이 그림보다 좁으면 카드가
+      그림 대신 열기 단추를 둔다(줄여 그리지 않는다).
+    -->
+    <FlowGuard v-if="project.file" :key="project.projectId ?? ''">
+      <FlowCard :file="project.file" />
+    </FlowGuard>
   </div>
 </template>

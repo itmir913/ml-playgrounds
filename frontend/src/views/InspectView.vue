@@ -25,6 +25,8 @@ import AppBadge from '@/components/AppBadge.vue'
 import AppButton from '@/components/AppButton.vue'
 import AppEmpty from '@/components/AppEmpty.vue'
 import AppTable from '@/components/AppTable.vue'
+import FlowGuard from '@/components/flow/FlowGuard.vue'
+import FlowOpenButton from '@/components/flow/FlowOpenButton.vue'
 import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
@@ -985,6 +987,13 @@ function reasonOf(code: string): string {
                 <!-- **제목이 첫 줄이다** (2026-09-18, 사용자). 학생이 이 프로젝트를 뭐라고
                    불렀는지가 요약의 머리에 선다 — 파일 이름과 다를 수 있다. -->
                 <ProjectSummary :file="viewing.file" with-name />
+                <!--
+                  **프로젝트 흐름도는 그림이 아니라 단추 하나다** (§8.22). 점검은 읽는 화면이라 그림을 미리 그리지
+                  않는다 — 누르면 학생이 쓰던 것과 같은 창이 열리고, 행 수는 계획을 거치지 않고 윤곽으로 그린다.
+                -->
+                <div class="mt-4">
+                  <FlowGuard><FlowOpenButton :file="viewing.file" lite /></FlowGuard>
+                </div>
               </aside>
 
               <!--

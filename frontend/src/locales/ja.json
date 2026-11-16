@@ -1193,5 +1193,38 @@
       "noModel": "予測に使うモデルがありません。学習のステップでモデルを学習してから予測してください。",
       "noUsableModel": "予測できるモデルがありません。モデルごとに表示された理由を確認してください。"
     }
+  },
+  "flow": {
+    "title": "プロジェクトの\u200bフロー図",
+    "whole": "全データ",
+    "train": "訓練データ",
+    "newData": "新しい\u200bデータ",
+    "usable": "学習に\u200b使用する\u200bデータ",
+    "usedData": "使用している\u200bデータ",
+    "grayData": "使用しない\u200bデータ",
+    "experiment": "実験",
+    "openFlow": "プロジェクトの\u200bフロー図を\u200b開く",
+    "enlarge": "拡大表示",
+    "fit": "全体を\u200b表示",
+    "basisWhole": "学習に\u200b使用する\u200bデータから算出",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "splitName": "分割",
+    "split": "{label} {train} : {test}",
+    "splitPending": "{label}は\u200b未定",
+    "task": {
+      "classification": "分類",
+      "regression": "回帰",
+      "clustering": "クラスタリング",
+      "unset": "未選択"
+    },
+    "tabular": {
+      "features": "特徴量 {count}個",
+      "targetSet": "ターゲット選択"
+    },
+    "image": {
+      "features": "写真",
+      "targetSet": "クラス\u200b指定済み"
+    }
   }
 }

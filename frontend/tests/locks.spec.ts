@@ -285,6 +285,7 @@ const CASES: {
       dataType: 'tabular',
     },
   },
+  flow: { locked: { dataReady: false }, open: { dataReady: true } },
   pageFirst: { locked: { page: 0 }, open: { page: 1 } },
   pageLast: { locked: { page: 2, pages: 3 }, open: { page: 1, pages: 3 } },
   listTop: { locked: { index: 0 }, open: { index: 1 } },

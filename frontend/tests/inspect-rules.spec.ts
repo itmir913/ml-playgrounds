@@ -147,7 +147,7 @@ describe('점검 경로', () => {
  */
 describe('점검 화면은 결과 화면의 부품을 쓴다', () => {
   const VIEW = join(SRC, 'views', 'InspectView.vue')
-  const SHARED = ['ExperimentDetail', 'ExperimentList', 'ProjectSummary']
+  const SHARED = ['ExperimentDetail', 'ExperimentList', 'ProjectSummary', 'FlowOpenButton']
 
   it('그 부품들을 임포트한다', () => {
     const source = body(VIEW)

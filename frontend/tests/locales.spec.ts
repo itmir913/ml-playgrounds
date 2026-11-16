@@ -1047,6 +1047,12 @@ describe('언어들이 나란히 말한다', () => {
     // 한국어는 세는 것을 앞 문장이 말해서 `{count}개` 하나로 되지만, 영어는 단위 낱말이
     // 붙고 복수형이 갈린다.
     ['meta.countUnit', 'preprocess.tabular.summaryFeatureUnit'],
+    // 프로젝트 흐름도의 칩과 이름표 (`flow.*`). 한국어는 짧은 이름(`특성 {count}개`·`분류`)이 기존 문구와 같은 글자지만,
+    // 영어의 이름표는 괄호 없이 이름 그대로이고 칩은 복수형이 갈린다(`{count} features`).
+    ['flow.tabular.features', 'preprocess.tabular.summaryFeatureUnit'],
+    ['flow.task.classification', 'taskTypes.classification'],
+    ['flow.task.clustering', 'taskTypes.clustering'],
+    ['flow.task.regression', 'taskTypes.regression'],
     // 한국어는 세는 것마다 단위가 다르다(`개`·`번`·`장`). 영어는 이름을 배지가 말하므로
     // 값 쪽에 붙일 낱말이 없어 셋 다 숫자만 남는다.
     ['meta.countUnit', 'meta.image.countUnit', 'results.experimentCount'],

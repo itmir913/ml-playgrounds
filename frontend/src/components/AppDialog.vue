@@ -11,6 +11,8 @@
 
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { ACTION_ICONS } from '@/icons'
+
 const props = defineProps<{
   open: boolean
   title: string
@@ -62,6 +64,12 @@ const props = defineProps<{
    * 서는지는 **사람 확인**이다(jsdom은 `showModal`의 초점 규칙을 안 갖는다).
    */
   focusPanel?: boolean
+  /**
+   * 제목줄 오른쪽 위에 닫기 단추를 두는가 — 이름을 주면 선다. 이 부품은 번역을 모른다 (`flow/FlowDialog.vue`). **기본은 없다** — 묻고 답하는 창은 아래
+   * 동작 줄의 [취소]가 닫는다. 이 프롭(닫기 단추의 이름)을 주고 `actions` 슬롯을 비우면 **아래 동작 줄이 서지 않아** 그 높이를 본문이
+   * 쓴다(보는 창의 판이 한 뼘 더 커진다). 단추는 `close`를 올릴 뿐이다 — 닫는 것은 부모다(이 부품의 머리말).
+   */
+  closeLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -166,9 +174,27 @@ function onBackdrop(event: MouseEvent): void {
     -->
     <div
       class="flex min-h-0 flex-col p-6 md:p-8"
-      :class="props.fill ? 'h-full' : props.wide ? 'dialog-wide-frame' : ''"
+      :class="[
+        props.fill ? 'h-full' : props.wide ? 'dialog-wide-frame' : '',
+        props.closeLabel !== undefined ? 'relative' : '',
+      ]"
     >
-      <h2 class="text-xl font-bold tracking-tight md:text-2xl">{{ title }}</h2>
+      <h2
+        class="text-xl font-bold tracking-tight md:text-2xl"
+        :class="props.closeLabel !== undefined ? 'pr-12' : ''"
+      >
+        {{ title }}
+      </h2>
+      <button
+        v-if="props.closeLabel !== undefined"
+        type="button"
+        :aria-label="props.closeLabel"
+        :title="props.closeLabel"
+        class="absolute top-4 right-4 rounded-control p-2 text-ink-soft hover:bg-surface-sunken hover:text-ink md:top-6 md:right-6"
+        @click="emit('close')"
+      >
+        <component :is="ACTION_ICONS.dismiss" :size="20" aria-hidden="true" />
+      </button>
       <!--
         **리듬이 두 단이다** — 이름과 그 설명 사이는 1.5, 덩어리와 덩어리 사이는 6.
         칸 안의 `AppField`·`AppChoices`가 같은 두 값을 쓰므로, 대화상자 제목부터
@@ -221,7 +247,7 @@ function onBackdrop(event: MouseEvent): void {
         가장 긴 덩어리가 `training`(8자, 약 64px)이라 한 칸이 96px, 둘에 간격 12px을
         더하면 204px이다. 그 위의 첫 눈금이 `@3xs`(16rem)다.
       -->
-      <div class="mt-6 shrink-0 @container">
+      <div v-if="props.closeLabel === undefined || $slots.actions" class="mt-6 shrink-0 @container">
         <div class="ml-auto grid w-fit gap-3 @3xs:grid-flow-col @3xs:auto-cols-fr">
           <slot name="actions" />
         </div>

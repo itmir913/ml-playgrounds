@@ -90,7 +90,8 @@ export const MEGABYTE_PLACEHOLDERS: ReadonlySet<string> = new Set([
  *
  * **이름이 두 얼굴인 것이 둘 있다.** `value`는 원본 데이터 값이지만 예상 시간(`train.estimate.*`, 약 N분)에는 세는 수가 온다 —
  * 원본 쪽이 우선이라 여기 두고, 예상 시간이 1,000분을 넘는 날에만 `1000`으로 찍힌다. `categories`는 범주 이름 목록이지만
- * `IMAGE_TOO_FEW_CATEGORIES`에는 0·1뿐인 수가 온다 — 묶어도 같다.
+ * `IMAGE_TOO_FEW_CATEGORIES`에는 0·1뿐인 수가 온다 — 묶어도 같다. `train`·`test`는 흐름도의 분할 비율(백분율, 두 자리
+ * 이하)이라 포맷해도 같다.
  */
 export const RAW_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'actual',
@@ -141,6 +142,8 @@ export const RAW_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'stored',
   'target',
   'task',
+  'test',
+  'train',
   'value',
   'values',
   'version',

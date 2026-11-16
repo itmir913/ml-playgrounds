@@ -1907,6 +1907,9 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
    * PNG로 만드는 것)이 실패하면 `LeaveGuard`처럼 **창이 남아 창 안에서 이유를 말한다** — 닫으면 그린
    * 그림이 사라진다. 버릴지 묻는 창은 일이 없다(답을 받으면 닫는다).
    *
+   * **`flow/FlowDialog.vue`도 `CLOSERS`가 아니다** (#48). `ChartDialog`처럼 묻는 창이 아니라 **보는 창**이다 —
+   * 확인할 일도 실패할 일도 없고, 여는 것도 닫는 것도 학생이다. 수를 구하다 실패하면 윤곽으로 둔다.
+   *
    * **`ColumnEncodingDialog.vue`도 `CLOSERS`가 아니다** (open-decisions.md 116). [적용]은 고른 설정을 동기로
    * 넘기고 끝나는 창이라 실패할 일이 없다 — 받는 쪽(`TabularPrepPanel`의 `applyEncoding`)이 닫고 쓴다.
    */
@@ -1918,6 +1921,7 @@ describe('전처리 판은 붙일 때도 뗄 때도 묻는다', () => {
 
     expect(screens).toEqual([
       'components/LeaveGuard.vue',
+      'components/flow/FlowDialog.vue',
       'views/PortfolioView.vue',
       'views/PreprocessView.vue',
       'views/ResultsView.vue',
@@ -3075,6 +3079,8 @@ describe('받은 것을 그리는 부품은 스토어를 안 읽는다', () => {
     join(SRC, 'views', 'results', 'panels'),
     join(SRC, 'components', 'summary'),
     join(SRC, 'components', 'ProjectSummary.vue'),
+    // 프로젝트 흐름도의 그림·창·단추는 파일만 받는다 — 점검에서도 열린다 (`architecture.md` §8.22).
+    join(SRC, 'components', 'flow'),
   ]
 
   const FILES = SHARED.flatMap((path) =>
@@ -3498,6 +3504,7 @@ describe('폭에 따라 글자를 숨기는 손잡이', () => {
       'components/ExportButton.vue',
       'components/ProjectStatus.vue',
       'components/StepRail.vue',
+      'components/flow/FlowOpenButton.vue',
       'views/PortfolioView.vue',
       'views/portfolio/TemplateSourceMenu.vue',
       'views/predict/TabularPredictPanel.vue',

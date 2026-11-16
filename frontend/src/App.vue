@@ -25,6 +25,7 @@ import { useRoute } from 'vue-router'
 
 import AppShell from '@/components/AppShell.vue'
 import AppToast from '@/components/AppToast.vue'
+import FlowHost from '@/components/FlowHost.vue'
 import LeaveGuard from '@/components/LeaveGuard.vue'
 import { useStorageBlockedNotice } from '@/composables/useStorageBlockedNotice'
 import { useUnloadWarning } from '@/composables/useUnloadWarning'
@@ -84,5 +85,7 @@ onBeforeUnmount(() => document.removeEventListener('visibilitychange', flushOnHi
   </AppShell>
   <!-- 떠나는 이동은 어느 화면에서든 시작되므로 확인 창은 껍데기에 하나다 (open-decisions.md 74). -->
   <LeaveGuard />
+  <!-- 프로젝트 흐름도의 창. 앱에 하나이고 요청이 있을 때만 지연해서 싣는다 (architecture.md §8.22). -->
+  <FlowHost />
   <AppToast />
 </template>

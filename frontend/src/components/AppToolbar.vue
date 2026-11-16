@@ -11,6 +11,7 @@
 import { useI18n } from 'vue-i18n'
 
 import ExportButton from '@/components/ExportButton.vue'
+import FlowButton from '@/components/FlowButton.vue'
 import ProjectName from '@/components/ProjectName.vue'
 import ProjectStatus from '@/components/ProjectStatus.vue'
 import { BRAND_ICON } from '@/icons'
@@ -51,6 +52,7 @@ const project = useProjectStore()
 
     <div class="ml-auto flex shrink-0 items-center gap-1">
       <ProjectStatus v-if="project.projectId !== null" />
+      <FlowButton v-if="project.projectId !== null" />
       <ExportButton v-if="project.projectId !== null" />
     </div>
   </header>

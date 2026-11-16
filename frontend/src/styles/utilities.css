@@ -677,9 +677,6 @@
   stroke: var(--flow);
   stroke-linecap: round;
 }
-@utility flow-stroke-pending {
-  stroke-dasharray: 6 5;
-}
 @utility flow-fill {
   fill: var(--flow);
 }
@@ -692,8 +689,6 @@
 @utility flow-bar-outline {
   fill: color-mix(in srgb, var(--flow) 6%, transparent);
   stroke: var(--flow);
-  stroke-width: 1.5px;
-  stroke-dasharray: 6 5;
 }
 @utility flow-bar-gray {
   fill: var(--color-line-strong);
@@ -707,7 +702,6 @@
 @utility flow-card-pending {
   fill: color-mix(in srgb, var(--color-surface) 45%, transparent);
   stroke: var(--color-ink-faint);
-  stroke-dasharray: 6 5;
 }
 
 /* 글자. 머리는 흐르는 것의 색을 잉크에 섞고, 윤곽의 글자는 흐린 잉크를 진하게 섞는다. */
@@ -726,7 +720,7 @@
 }
 @utility flow-node-pending {
   background: color-mix(in srgb, var(--color-surface) 45%, transparent);
-  border: 1px dashed var(--color-ink-faint);
+  border: 1px solid transparent;
   color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
 }
 @utility flow-node-mark {
@@ -745,7 +739,7 @@
 }
 @utility flow-circle-pending {
   background: color-mix(in srgb, var(--flow) 5%, transparent);
-  border: 2px dashed var(--color-ink-faint);
+  border: 2px solid transparent;
   color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
 }
 
@@ -754,6 +748,49 @@
   background: color-mix(in srgb, var(--color-chart-5) 12%, var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-chart-5) 40%, transparent);
   color: color-mix(in srgb, var(--color-chart-5) 50%, var(--color-ink));
+}
+
+/*
+ * 칩(데이터 카드의 특성·타깃, 학습 상자의 유형). **테두리가 바탕과 3:1을 넘는다** — 옅은 `line` 테두리는 학교의
+ * 낮은 품질 모니터에서 안 보였다. 글자는 잉크, 바탕은 가라앉은 면이다. 아직 안 한 일(유형 미정)은 점선 테두리와
+ * 흐린 잉크, 면은 비운다. 대비는 `tests/flow-contrast.spec.ts`가 잰다.
+ */
+@utility flow-chip {
+  background: var(--color-surface-sunken);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-ink-faint);
+  color: var(--color-ink);
+}
+@utility flow-chip-pending {
+  background: transparent;
+  border-width: 1px;
+  border-style: solid;
+  border-color: transparent;
+  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
+}
+
+/* 이름표가 아직 안 한 일일 때(유형을 안 골랐다). 점선 테두리와 흐린 잉크, 면은 비운다. */
+@utility flow-tag-pending {
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
+}
+
+/* 전처리에서 구할 값이 없는 상자. 실선 테두리를 끄고 점선 윤곽(`flow-outline`)을 겹친다 — 아직 안 한 일과 같은 문법이다. */
+@utility flow-node-off {
+  border-color: transparent;
+}
+
+/*
+ * **아직 안 한 일의 윤곽은 한 문법이다** — 상자·원·칩·카드가 같은 굵기, 같은 점선 길이와 간격, 같은 색이다.
+ * HTML의 `border: dashed`는 점선 길이를 브라우저가 정해 SVG의 `stroke-dasharray`와 맞출 수 없으므로, 윤곽은 전부
+ * SVG로 그린다(`components/flow/FlowOutline.vue`와 카드·막대의 SVG). 굵기와 점선은 `FLOW_GEOMETRY`의 `pending*`에서
+ * 오고 색은 여기 한 곳이다. 대비는 `tests/flow-contrast.spec.ts`가 잰다.
+ */
+@utility flow-outline {
+  fill: none;
+  stroke: var(--color-ink-faint);
 }
 
 /* 경로 강조. 흐려지는 것은 불투명도만 전환하고, 빛 번짐은 켜질 때 바로 붙는다. */

@@ -1193,5 +1193,38 @@
       "noModel": "예측에 사용할 모델이 없습니다. 학습 단계에서 모델을 학습한 뒤 예측해 주세요.",
       "noUsableModel": "예측할 수 있는 모델이 없습니다. 모델마다 표시된 이유를 확인해 주세요."
     }
+  },
+  "flow": {
+    "title": "프로젝트 흐름도",
+    "whole": "전체 데이터",
+    "train": "훈련 데이터",
+    "newData": "새 데이터",
+    "usable": "학습에 사용하는 데이터",
+    "usedData": "사용하는 데이터",
+    "grayData": "사용하지 않는 데이터",
+    "experiment": "실험",
+    "openFlow": "프로젝트 흐름도 열기",
+    "enlarge": "크게 보기",
+    "fit": "전체 보기",
+    "basisWhole": "학습에 사용하는 데이터 기준",
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "splitName": "분할",
+    "split": "{label} {train} : {test}",
+    "splitPending": "{label} 미정",
+    "task": {
+      "classification": "분류",
+      "regression": "회귀",
+      "clustering": "군집화",
+      "unset": "유형 선택 전"
+    },
+    "tabular": {
+      "features": "특성 {count}개",
+      "targetSet": "타깃 선택됨"
+    },
+    "image": {
+      "features": "사진",
+      "targetSet": "범주 지정됨"
+    }
   }
 }

@@ -19,11 +19,11 @@
 
 import { MIN_CLASSIFICATION_CATEGORIES, MIN_SPLIT_ROWS } from '@/limits'
 import { summarizeColumns, type ColumnSummary } from '@/data/columns'
-import type { FlowPrep } from '@/ml/flow'
+import { splitTestFromFile, type FlowPrep } from '@/ml/flow'
 import type { FlowBarValues } from '@/ml/flow-layout'
 import { tabularPlanOf, plannedColumnsOf } from '@/ml/plan-cache'
 import { fitsAnyBasis, type Dataset } from '@/ml/preprocess'
-import { columnPlan } from '@/ml/selection'
+import { columnPlan, splitsData } from '@/ml/selection'
 import { testCountFor } from '@/ml/split'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { IMAGE_UNLABELED, type ProjectFile } from '@/project/format'
@@ -164,14 +164,15 @@ function imageRows(
   // 유형을 모르면 어느 사진이 쓰이는지도 모른다 — 표의 `pending`과 같다.
   if (taskType === undefined) return { total, ...NO_ROWS, testFile: null }
 
-  const clustering = taskType === 'clustering'
+  // 나누지 않는 유형(군집화)은 범주를 안 쓰고 테스트 몫이 없다.
+  const clustering = !splitsData(taskType)
   const usable = clustering
     ? total
     : readImages(file).filter((entry) => entry.category !== IMAGE_UNLABELED).length
   const refused = clustering
     ? usable < 1
     : labeledCategoryCount(file) < MIN_CLASSIFICATION_CATEGORIES || usable < MIN_SPLIT_ROWS
-  const provided = !clustering && settings.split.method === 'provided'
+  const provided = !clustering && splitTestFromFile(settings.split.method)
   const testFile = provided ? { total: testPhotos, usable: testPhotos } : null
   if (refused) return { total, ...NO_ROWS, testFile }
 
@@ -204,6 +205,21 @@ function imageCounts(file: ProjectFile): FlowCounts | null {
   }
 }
 
+/** 점검용. 사진도 계획을 세우지 않고 행 수 없이 윤곽으로 둔다 — 사진 수와 별도 테스트 사진 수만 안다. */
+function imageLite(file: ProjectFile): FlowCounts | null {
+  const total = readImages(file).length
+  if (total === 0) return null
+  const { manifest, settings } = file.document
+  const provided = splitsData(manifest.taskType) && splitTestFromFile(settings.split.method)
+  return {
+    ...NO_ROWS,
+    total,
+    featureCount: null,
+    prep: 'backbone',
+    testFile: provided ? { total: readImages(file, 'test').length, usable: null } : null,
+  }
+}
+
 // ---------------------------------------------------------------------------------- 입구
 
 /** 종류마다의 수. `Record<DataType, …>`이라 종류를 더하면 칸을 채워야 한다. */
@@ -214,8 +230,7 @@ const COUNTS: Readonly<Record<DataType, (file: ProjectFile) => FlowCounts | null
 
 const LITE_COUNTS: Readonly<Record<DataType, (file: ProjectFile) => FlowCounts | null>> = {
   tabular: tabularLite,
-  // 사진은 계획이 없어 점검에서도 같은 길이다. 행 수가 사진 수 계산뿐이라 가볍다.
-  image: imageCounts,
+  image: imageLite,
 }
 
 /**
