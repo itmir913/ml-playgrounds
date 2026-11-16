@@ -7,8 +7,8 @@
  * 첫 화면의 꾸러미에 계획 코드를 싣지 않는가**(소스를 읽는다 — 번들 크기는 빌드가 아니라 임포트가 정한다).
  */
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -287,6 +287,81 @@ describe('첫 화면의 꾸러미에 계획 코드가 안 실린다', () => {
     expect(staticImports("import {\n  a,\n  b,\n} from '@/ml/plan-cache'")).toEqual([
       '@/ml/plan-cache',
     ])
+  })
+})
+
+/**
+ * 정적 임포트를 소스 파일로 푼다 — `@/`와 상대 경로만. 바깥 꾸러미(`vue` 따위)는 `null`이다.
+ */
+function resolveImport(from: string, spec: string): string | null {
+  const base = spec.startsWith('@/')
+    ? join(SRC, spec.slice(2))
+    : spec.startsWith('.')
+      ? join(dirname(from), spec)
+      : null
+  if (base === null) return null
+  for (const candidate of [base, `${base}.ts`, `${base}.vue`, join(base, 'index.ts')])
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate
+  return null
+}
+
+/** 뿌리에서 정적 임포트를 끝까지 따라가 닿는 파일 전부. 값은 그 파일을 들인 파일이다(길을 말하려고). */
+function reachable(roots: readonly string[]): Map<string, string | null> {
+  const seen = new Map<string, string | null>()
+  const stack: [string, string | null][] = roots.map((root) => [root, null])
+  while (stack.length > 0) {
+    const [path, by] = stack.pop()!
+    if (seen.has(path)) continue
+    seen.set(path, by)
+    for (const spec of staticImports(code(path))) {
+      const next = resolveImport(path, spec)
+      if (next !== null) stack.push([next, path])
+    }
+  }
+  return seen
+}
+
+/** 닿은 파일까지의 길. 빨갛게 될 때 어디서 끌려왔는지 말한다. */
+function chainOf(seen: Map<string, string | null>, path: string): string {
+  const chain: string[] = []
+  for (let at: string | null = path; at !== null; at = seen.get(at) ?? null)
+    chain.push(at.slice(SRC.length + 1))
+  return chain.join(' <- ')
+}
+
+/**
+ * **바로 들이지 않아도 건너서 들이면 같다** — 대시보드·도구 막대에서 닿는 `ml/flow-*.ts`·`project/facts.ts`가
+ * 계획 코드를 들이면 첫 화면이 그것을 싣는다. 그래서 정적 임포트를 끝까지 따라간다.
+ *
+ * 점검 화면(`InspectView.vue`)은 뿌리가 아니다 — 제 라우트 청크이고, 실험의 재현을 보이므로 계획 코드를 싣는
+ * 것이 맞다. 그 파일이 흐름도 쪽으로 직접 들이는 것은 위의 검사가 본다.
+ */
+describe('첫 화면에서 건너서 닿는 코드에도 계획 코드가 없다', () => {
+  const ROOTS = EAGER.filter((path) => !path.endsWith('InspectView.vue'))
+  const HEAVY_FILES = [
+    'plan.ts',
+    'plan-cache.ts',
+    'experiment.ts',
+    'flow-counts.ts',
+    'training-source.ts',
+  ].map((name) => join(SRC, 'ml', name))
+  const seen = reachable(ROOTS)
+
+  it('따라간 길이 흐름도의 계산 모듈까지 닿는다', () => {
+    for (const name of ['flow.ts', 'flow-layout.ts', 'flow-view.ts', 'flow-zoom.ts'])
+      expect([...seen.keys()], name).toContain(join(SRC, 'ml', name))
+    expect([...seen.keys()]).toContain(join(SRC, 'project', 'facts.ts'))
+  })
+
+  for (const heavy of HEAVY_FILES) {
+    it(`${heavy.slice(SRC.length + 1)}에 닿지 않는다`, () => {
+      expect(seen.has(heavy), seen.has(heavy) ? chainOf(seen, heavy) : '').toBe(false)
+    })
+  }
+
+  it('검사기가 건너서 닿는 것을 잡는다', () => {
+    const inspect = reachable([join(SRC, 'views', 'InspectView.vue')])
+    expect(inspect.has(join(SRC, 'ml', 'plan.ts'))).toBe(true)
   })
 })
 
