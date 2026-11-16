@@ -181,7 +181,7 @@ const glow = (emphasis: Emphasis): Record<string, boolean> => ({
 })
 
 const text = computed(() => FLOW_TEXT[model.value?.dataType ?? 'tabular'])
-/** 기준 선의 이름. 나누지 않는 유형은 훈련 데이터라는 몫이 없다 — 학습에 쓰는 데이터가 기준이다. */
+/** 기준 선의 이름. 나누지 않는 유형은 훈련 데이터라는 몫이 없다 — 학습에 사용하는 데이터가 기준이다. */
 const basisKey = computed(() => basisKeyOf(model.value?.splitsData ?? true))
 
 // --- 막대 조각

@@ -75,7 +75,7 @@ export type FlowPrep = (typeof FLOW_PREPS)[number]
 
 /**
  * 그림 안의 낱말이 가리키는 로케일 키 — **리터럴 표다.** 키를 조립하면 `locales.spec.ts`가 사용된 키로
- * 세지 못한다. 앞쪽 다섯 줄은 이미 있는 키이고 `flow.*`는 로케일 문구와 함께 들어온다.
+ * 세지 못한다. 흐름도만의 이름은 `flow.*`이고, 화면에 이미 있는 이름(데이터 전처리·학습 따위)은 그 키를 그대로 쓴다.
  */
 export const FLOW_LABEL_KEYS = {
   file: 'flow.whole',

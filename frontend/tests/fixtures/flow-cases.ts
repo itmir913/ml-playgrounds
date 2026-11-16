@@ -110,10 +110,10 @@ export const FLOW_CASES: readonly FlowCase[] = [
     build: () => withRuns(withTask(projectFile(), 'regression'), []),
   },
   { no: 3, title: '표 · 분류 · provided', build: () => projectFileWithTestDataset() },
-  { no: 4, title: '표 · 군집 · holdout', build: () => withTask(projectFile(), 'clustering') },
+  { no: 4, title: '표 · 군집화 · holdout', build: () => withTask(projectFile(), 'clustering') },
   {
     no: 5,
-    title: '표 · 군집 · provided',
+    title: '표 · 군집화 · provided',
     build: () => withTask(projectFileWithTestDataset(), 'clustering'),
   },
   {
@@ -171,7 +171,7 @@ export const FLOW_CASES: readonly FlowCase[] = [
   },
   {
     no: 13,
-    title: '이미지 · 군집',
+    title: '이미지 · 군집화',
     build: () =>
       photos(['개'], (file) => {
         file.document.manifest.taskType = 'clustering'

@@ -279,7 +279,7 @@ describe('기준 선의 줄기와 갈래', () => {
 })
 
 describe('유형과 분할 방식에 따라 경로가 달라진다', () => {
-  it('군집의 결과는 훈련 쪽 전처리를 곧장 받는다 — 테스트 줄이 없다', () => {
+  it('군집화의 결과는 훈련 쪽 전처리를 곧장 받는다 — 테스트 줄이 없다', () => {
     const model = modelOf(withTask(projectFile(), 'clustering'), 'preprocess')!
     const found = lit(model, 'eval')
     expect([...found.nodes].sort()).toEqual(['eval', 'exp', 'file', 'learn', 'p1', 'train'])

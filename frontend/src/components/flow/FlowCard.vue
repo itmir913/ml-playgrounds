@@ -25,7 +25,6 @@ import { useFlowCounts } from '@/composables/useFlowCounts'
 import { useFlowDialog } from '@/composables/useFlowDialog'
 import { flowModelOf } from '@/ml/flow'
 import { FLOW_GEOMETRY } from '@/ml/flow-layout'
-import { escapeStep } from '@/ml/flow-zoom'
 import { factsOf } from '@/project/facts'
 import type { ProjectFile } from '@/project/format'
 
@@ -62,7 +61,6 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   // 다른 부품이 이미 처리했거나 열린 창이 있으면 비킨다 — 창이 우선이다.
   if (event.defaultPrevented || dialog.request.value !== null) return
   if (document.querySelector('dialog[open]') !== null) return
-  if (escapeStep({ pinned: true }).closeDialog) return
   event.preventDefault()
   pinned.value = null
 }

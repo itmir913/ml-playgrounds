@@ -98,7 +98,7 @@ describe('열여섯 경우', () => {
     ])
   })
 
-  it('4. 표 · 군집 · holdout — 테스트 줄도 두 번째 전처리도 없다', () => {
+  it('4. 표 · 군집화 · holdout — 테스트 줄도 두 번째 전처리도 없다', () => {
     const file = withTask(projectFile(), 'clustering')
     expect(sketch(modelOf(file))).toEqual([
       'nodes file+ train+ new+ p1+ p3+ learn+ exp+ eval+ pred+',
@@ -108,7 +108,7 @@ describe('열여섯 경우', () => {
     ])
   })
 
-  it('5. 표 · 군집 · provided — 4와 같다 (테스트 카드를 안 그린다)', () => {
+  it('5. 표 · 군집화 · provided — 4와 같다 (테스트 카드를 안 그린다)', () => {
     const provided = withTask(projectFileWithTestDataset(), 'clustering')
     const holdout = withTask(projectFile(), 'clustering')
     expect(sketch(modelOf(provided))).toEqual(sketch(modelOf(holdout)))
@@ -200,7 +200,7 @@ describe('열여섯 경우', () => {
     expect(model?.provided).toBe(true)
   })
 
-  it('13. 이미지 · 군집 — 타깃 칩도 테스트 줄도 없다', () => {
+  it('13. 이미지 · 군집화 — 타깃 칩도 테스트 줄도 없다', () => {
     const model = modelOf(
       photos(['개'], (file) => {
         file.document.manifest.taskType = 'clustering'
@@ -266,7 +266,7 @@ describe('전처리 자리의 모양', () => {
     expect(model?.nodes.filter((node) => node.prep === 'preprocessOff')).toHaveLength(3)
   })
 
-  it('군집에서는 기준 간선이 하나뿐이다 (p1에서 p3)', () => {
+  it('군집화에서는 기준 간선이 하나뿐이다 (p1에서 p3)', () => {
     const model = modelOf(withTask(projectFile(), 'clustering'), 'preprocess')
     expect(
       model?.edges.filter((edge) => edge.flow === 'basis').map((e) => `${e.from}>${e.to}`),
@@ -305,7 +305,7 @@ describe('모델의 불변식', () => {
   const FILES: [string, ProjectFile][] = [
     ['표', projectFile()],
     ['표 provided', projectFileWithTestDataset()],
-    ['표 군집', withTask(projectFile(), 'clustering')],
+    ['표 군집화', withTask(projectFile(), 'clustering')],
     ['사진', photos(TWO)],
   ]
 
@@ -346,7 +346,7 @@ describe('모델의 불변식', () => {
     }
   })
 
-  it('군집에서는 훈련 몫의 이름이 달라지고 결과가 훈련의 색이다', () => {
+  it('군집화에서는 훈련 몫의 이름이 달라지고 결과가 훈련의 색이다', () => {
     const model = modelOf(withTask(projectFile(), 'clustering'))
     expect(model?.nodes.find((node) => node.id === 'train')?.labelKey).toBe(
       FLOW_LABEL_KEYS.trainAll,

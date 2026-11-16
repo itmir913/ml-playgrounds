@@ -75,7 +75,7 @@ describe('표 · 계획이 선 경우', () => {
     })
   })
 
-  it('표본 수를 켜면 뽑은 만큼만 나뉘고 남은 몫이 추출하지 않은 행이다', async () => {
+  it('표본 수를 켜면 추출한 만큼만 나뉘고 남은 몫이 추출하지 않은 행이다', async () => {
     const file = edited(await surveyProject(true), (document) => withSampling(document, 20, NOW))
     expect(await flowCountsOf(file)).toMatchObject({
       usable: 39,
@@ -86,7 +86,7 @@ describe('표 · 계획이 선 경우', () => {
     })
   })
 
-  it('군집은 테스트가 0이고 타깃이 빈 행도 버리지 않는다', async () => {
+  it('군집화는 테스트가 0이고 타깃이 빈 행도 버리지 않는다', async () => {
     const file = edited(await surveyProject(true), (document) =>
       withTaskType(document, 'clustering', NOW),
     )
@@ -99,7 +99,7 @@ describe('표 · 계획이 선 경우', () => {
     })
   })
 
-  it('별도 테스트 파일이면 파일의 수가 나오고 훈련은 뽑은 행 전부다', async () => {
+  it('별도 테스트 파일이면 파일의 수가 나오고 훈련은 추출한 행 전부다', async () => {
     const file = await surveyProject(true)
     const imported = importTable(await openTable(surveyCsv(true), '시험.csv', { locale: 'ko' }))
     const withTest = applyTestDataset(file, imported, {
@@ -361,7 +361,7 @@ describe('이미지', () => {
     expect(counts?.train).toBe(19)
   })
 
-  it('분류 + 표본 수: 뽑은 만큼만 나눈다', async () => {
+  it('분류 + 표본 수: 추출한 만큼만 나눈다', async () => {
     const file = edited(typed(photos(SHAPE), 'classification'), (document) =>
       withSampling(document, 10, NOW),
     )
@@ -370,14 +370,14 @@ describe('이미지', () => {
     expect(counts).toMatchObject(trainedLengths(file, 'classification'))
   })
 
-  it('군집: 범주 없는 사진도 전부 쓰므로 회색이 레이블 때문에 생기지 않는다', async () => {
+  it('군집화: 범주 없는 사진도 전부 사용하므로 범주 때문에 회색이 생기지 않는다', async () => {
     const file = typed(photos(SHAPE), 'clustering')
     const counts = await flowCountsOf(file)
     expect(counts).toMatchObject({ total: 28, usable: 28, unusable: 0, notDrawn: 0, test: 0 })
     expect(counts).toMatchObject(trainedLengths(file, 'clustering'))
   })
 
-  it('군집 + 표본 수: 추출하지 않은 몫만 회색이다', async () => {
+  it('군집화 + 표본 수: 추출하지 않은 몫만 회색이다', async () => {
     const file = edited(typed(photos(SHAPE), 'clustering'), (document) =>
       withSampling(document, 20, NOW),
     )
@@ -386,7 +386,7 @@ describe('이미지', () => {
     expect(counts).toMatchObject(trainedLengths(file, 'clustering'))
   })
 
-  it('별도 테스트 사진: 훈련은 뽑은 사진 전부이고 테스트 파일 수가 나온다', async () => {
+  it('별도 테스트 사진: 훈련은 추출한 사진 전부이고 테스트 파일 수가 나온다', async () => {
     const base = typed(photos({ 개: 6, 고양이: 6 }), 'classification')
     const applied = applyTestImages(
       base,
