@@ -581,6 +581,37 @@ export function fitPreprocessor(
   return { format: PREPROCESSOR_FORMAT, columns, featureNames, excludedColumns }
 }
 
+/** 결측 대체값을 훈련 데이터에서 구하는 전략. `zero`는 상수라 없다. */
+const FITTED_MISSING: readonly Preprocessing['missing'][] = ['mean', 'median', 'mostFrequent']
+
+/**
+ * 훈련 데이터에서 구하는 값이 **하나라도 있는 전처리인가.** 프로젝트 흐름도가 "훈련 데이터 기준"
+ * 화살표를 그릴지 정한다 (`architecture.md` §8.22). 없으면 상자는 점선이고 화살표가 없다.
+ *
+ * 구하는 값은 셋이다 — ① 결측을 평균·중앙값·최빈값으로 채우는 것 ② 스케일링이 켜져 있고 수치
+ * 특성이 있는 것 ③ 범주 특성 가운데 인코딩이 꺼지지 않은 것(범주 목록을 훈련 데이터에서 구한다).
+ * **`zero`는 상수라 구하는 값이 아니다.** 인코딩은 `resolveColumnPreprocessing`으로 열마다 해석한
+ * 값을 본다 — 공통값만 보면 열별 덮어쓰기가 한쪽으로만 반영된다(open-decisions.md 116).
+ *
+ * **`kinds`는 필수다.** 열의 종류는 데이터를 봐야 알고, 호출 쪽이 기본값을 지어내면 전처리가 없는
+ * 프로젝트가 있는 것으로 그려진다. 넘기는 것은 **학습에 드는 특성만**이다. 무는 검사:
+ * `tests/fits-any-basis.spec.ts`.
+ */
+export function fitsAnyBasis(
+  preprocessing: Preprocessing,
+  kinds: readonly { readonly name: string; readonly kind: ColumnKind }[],
+): boolean {
+  if (FITTED_MISSING.includes(preprocessing.missing)) return true
+  if (preprocessing.scaling !== 'none' && kinds.some((entry) => entry.kind === 'numeric')) {
+    return true
+  }
+  return kinds.some(
+    (entry) =>
+      entry.kind === 'categorical' &&
+      resolveColumnPreprocessing(preprocessing, entry.name).categoricalEncoding !== 'none',
+  )
+}
+
 /** 열 이름 → 그 열의 범주형 인코딩. 아래 두 함수가 만든다. */
 export type EncodingOf = (column: string) => Preprocessing['categoricalEncoding']
 
