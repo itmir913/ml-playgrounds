@@ -992,7 +992,9 @@ function reasonOf(code: string): string {
                   않는다 — 누르면 학생이 쓰던 것과 같은 창이 열리고, 행 수는 계획을 거치지 않고 윤곽으로 그린다.
                 -->
                 <div class="mt-4">
-                  <FlowGuard><FlowOpenButton :file="viewing.file" lite /></FlowGuard>
+                  <FlowGuard :key="opened?.label ?? ''"
+                    ><FlowOpenButton :file="viewing.file" lite
+                  /></FlowGuard>
                 </div>
               </aside>
 

@@ -84,12 +84,17 @@ const topInset = computed(() => {
  * (감사 실측, 375·500 폭). 첫 화면이 잡히기 전의 초점은 `reveal`이 무시한다.
  */
 let settled = false
+/** 지금 눈금이 [전체 보기]의 맞춤인가. 만지면(`touch`) 거짓이 된다. */
+let fitted = false
 
 function settle(): void {
   // 창이 닫혀 판의 폭이 0이 되면 다음에 열릴 때 첫 화면을 다시 잡아야 한다.
   if (viewportBox.value.w === 0) settled = false
   if (moved || viewportBox.value.w === 0 || planeBox.value.w === 0) return
-  view.value = initialView(viewportBox.value, planeBox.value, topInset.value)
+  // [전체 보기]를 누른 뒤에는 크기가 바뀌어도 맞춤을 다시 건다 — 첫 화면으로 덮지 않는다.
+  view.value = fitted
+    ? fit(viewportBox.value, planeBox.value)
+    : initialView(viewportBox.value, planeBox.value, topInset.value)
   settled = true
 }
 
@@ -101,6 +106,7 @@ const transform = computed(
 
 function touch(next: View): void {
   moved = true
+  fitted = false
   view.value = next
 }
 
@@ -116,6 +122,7 @@ const zoomOut = (): void => touch(stepZoom(view.value, viewportBox.value, 'out')
 function fitAll(): void {
   view.value = fit(viewportBox.value, planeBox.value)
   moved = false
+  fitted = true
 }
 
 function onWheel(event: WheelEvent): void {
@@ -145,6 +152,8 @@ function beginGesture(): void {
 }
 
 function onPointerDown(event: PointerEvent): void {
+  // 마우스는 왼쪽 단추만 끈다 — 오른쪽·가운데 단추나 메뉴가 끌기를 시작하면 놓은 소식이 안 와 판이 붙어 다닌다.
+  if (event.pointerType === 'mouse' && event.button !== 0) return
   const target = event.target
   if (target instanceof Node && bar.value?.contains(target) === true) return
   pointers.set(event.pointerId, local(event))
@@ -158,6 +167,11 @@ function onPointerDown(event: PointerEvent): void {
 
 function onPointerMove(event: PointerEvent): void {
   if (!pointers.has(event.pointerId) || gesture === null) return
+  // 창 밖에서 놓아 `pointerup`을 못 받았으면 단추가 눌려 있지 않다 — 끌기를 끝낸다.
+  if (event.pointerType === 'mouse' && event.buttons === 0) {
+    onPointerEnd(event)
+    return
+  }
   pointers.set(event.pointerId, local(event))
   const now = summary()
   const start = gesture.pinch

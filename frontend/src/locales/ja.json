@@ -1220,7 +1220,7 @@
     },
     "tabular": {
       "features": "特徴量 {count}個",
-      "targetSet": "ターゲット選択"
+      "targetSet": "目的変数\u200b選択済み"
     },
     "image": {
       "features": "写真",

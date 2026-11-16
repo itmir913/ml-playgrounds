@@ -100,6 +100,10 @@ describe('시안(v6, flow34)의 좌표', () => {
       ['군집화', () => modelOf(withTask(projectFile(), 'clustering'))],
     ]
 
+    it('칩 줄의 두 칸과 틈이 안쪽 폭이다', () => {
+      expect(G.chipColA + G.chipGap + G.chipColB).toBe(G.innerW)
+    })
+
     it('가로: 카드 안쪽 자리가 여백 하나로 서 있다', () => {
       expect(G.innerX - G.cardX).toBe(G.cardPad)
       expect(G.cardX + G.cardW - (G.innerX + G.innerW)).toBe(G.cardPad)

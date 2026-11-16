@@ -59,7 +59,9 @@ function enlarge(event: MouseEvent): void {
  */
 function onDocumentKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || pinned.value === null) return
-  if (dialog.request.value !== null) return
+  // 다른 부품이 이미 처리했거나 열린 창이 있으면 비킨다 — 창이 우선이다.
+  if (event.defaultPrevented || dialog.request.value !== null) return
+  if (document.querySelector('dialog[open]') !== null) return
   if (escapeStep({ pinned: true }).closeDialog) return
   event.preventDefault()
   pinned.value = null

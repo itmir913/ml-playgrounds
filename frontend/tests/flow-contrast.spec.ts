@@ -202,15 +202,6 @@ describe.each(THEMES)('%s에서의 대비', (file) => {
     }
   })
 
-  it('이름표 글자가 이름표 바탕 위에서 4.5 이상이다', () => {
-    const context = under(sunken, tintToken('model'))
-    const ratio = contrast(
-      evaluate(declaration('flow-tag', 'color'), context),
-      evaluate(declaration('flow-tag', 'background'), context),
-    )
-    expect(ratio).toBeGreaterThanOrEqual(4.5)
-  })
-
   it('칩의 테두리가 상자·카드 바탕과 3 이상이고 글자가 칩 바탕 위에서 4.5 이상이다', () => {
     const context = under(surface, tintToken('train'))
     const border = evaluate(declaration('flow-chip', 'border-color'), context)

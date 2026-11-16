@@ -488,19 +488,20 @@ const newCard = computed(() => layout.value?.cards.find((card) => card.id === 'n
 
       <div
         :ref="(element) => setChipRow(card.id, element)"
-        class="flow-fade absolute grid items-start gap-3"
+        class="flow-fade absolute grid items-start"
         :class="fade(nodeEmphasis(highlight, card.node))"
         :style="{
           left: px(G.innerX),
           top: px(card.chipsY),
           width: px(G.innerW),
           gridTemplateColumns: card.id === 'new' ? '1fr' : `${px(G.chipColA)} ${px(G.chipColB)}`,
+          columnGap: px(G.chipGap),
         }"
       >
         <div
           v-for="(chip, at) in chipsOf(card)"
           :key="at"
-          class="relative flex min-w-0 items-center rounded-2xl border px-3.5 py-1 leading-tight font-semibold"
+          class="relative flex min-w-0 items-center rounded-2xl border px-3 py-1 leading-tight font-semibold"
           :class="[chip.empty || chip.pending ? 'flow-chip-pending' : 'flow-chip']"
           :style="{ minHeight: px(G.newChipH) }"
         >

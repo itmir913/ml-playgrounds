@@ -13,10 +13,13 @@ import { useRoute } from 'vue-router'
 
 import FlowGuard from '@/components/flow/FlowGuard.vue'
 import { useFlowDialog } from '@/composables/useFlowDialog'
+import type { ProjectFile } from '@/project/format'
+import { useProjectStore } from '@/stores/project'
 
 const FlowDialog = defineAsyncComponent(() => import('@/components/flow/FlowDialog.vue'))
 
 const dialog = useFlowDialog()
+const project = useProjectStore()
 const route = useRoute()
 
 // 라우트가 바뀌면 창을 닫는다 — 창이 열린 채 다른 프로젝트나 화면으로 넘어가면 옛 파일의 그림이 남는다.
@@ -26,6 +29,19 @@ watch(
     if (dialog.request.value !== null) dialog.close()
   },
 )
+
+/**
+ * 창에 넘길 파일. **열린 프로젝트의 창이면 스토어의 최신 파일이다** — 열린 동안 학습이 끝나거나 자동 저장이 파일을
+ * 바꿔도 그림이 낡지 않는다. 점검(`lite`)은 스토어와 무관한 열람이라 연 순간의 파일 그대로다.
+ */
+function fileOf(request: { file: ProjectFile; lite: boolean }): ProjectFile {
+  if (request.lite) return request.file
+  const live = project.file
+  return live !== null &&
+    live.document.manifest.projectId === request.file.document.manifest.projectId
+    ? live
+    : request.file
+}
 
 function onClose(): void {
   // 창이 사라지며 `close`가 한 번 더 온다. 그때는 이미 닫혀 있다.
@@ -41,7 +57,7 @@ function onClose(): void {
   <!-- 창을 그리다 던지거나 지연 로딩이 실패하면 창만 닫고 앱은 그대로다(`FlowGuard`). -->
   <FlowGuard v-if="dialog.request.value !== null" @failed="onClose">
     <FlowDialog
-      :file="dialog.request.value.file"
+      :file="fileOf(dialog.request.value)"
       :lite="dialog.request.value.lite"
       open
       @close="onClose"

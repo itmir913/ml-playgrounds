@@ -15,7 +15,7 @@ const project = useProjectStore()
 </script>
 
 <template>
-  <FlowGuard v-if="project.file !== null">
+  <FlowGuard v-if="project.file !== null" :key="project.projectId ?? ''">
     <FlowOpenButton :file="project.file" compact />
   </FlowGuard>
 </template>

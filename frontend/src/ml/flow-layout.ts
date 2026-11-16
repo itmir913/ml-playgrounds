@@ -103,6 +103,14 @@ export const FLOW_GEOMETRY = {
   learnW: 190,
   evalX: 815,
   evalW: 114,
+  /** 실험 원 밑에서 결과로 내려가는 선이 시작하는 틈. */
+  expBottomGap: 2,
+  /** 군집·별도 테스트가 아닌 때 훈련 선이 나오는 분할 막대 위 자리(안쪽 폭의 몫). */
+  trainShare: 0.4,
+  /** 테스트 쪽 전처리 상자의 가운데가 분할 막대에서 내려가는 길이. */
+  p2BelowSplit: 56,
+  /** 기준 선 이름표가 줄기에서 오른쪽으로 떨어진 길이. */
+  basisLabelLeft: 10,
   /** 첫 줄(훈련 → 모델 → 예측)의 가운데 높이. */
   rowY: 140,
   /** 결과 상자의 가운데 높이가 정해지지 않을 때(군집). */
@@ -148,8 +156,10 @@ export const FLOW_GEOMETRY = {
   basisLabelW: 260,
 
   /** 칩 줄의 두 칸 폭(전체 데이터·테스트 카드). 새 데이터 카드는 한 칸이다. */
-  chipColA: 144,
-  chipColB: 136,
+  chipColA: 128,
+  chipColB: 156,
+  /** 두 칩 사이의 틈. 안쪽 폭(`innerW`)은 두 칸과 이 틈의 합이다. */
+  chipGap: 8,
   /** 카드 모서리. 선 밑에 까는 바탕색 굵은 선의 굵기. */
   cardRadius: 14,
   haloStroke: 6,
@@ -437,7 +447,7 @@ const ROUTES: Readonly<Partial<Record<string, (spots: Spots) => Route>>> = {
   },
   // 실험 원에서 결과 상자로 내려온다. 끝이 위를 보고, 마지막 직선이 곧 세로 길이다.
   'exp>eval': (s) => {
-    const y0 = s.p1Y + G.circleR + 2
+    const y0 = s.p1Y + G.circleR + G.expBottomGap
     const y1 = s.evalY - G.boxH / 2 - G.gapEvalTop
     return {
       d: `M${G.expCx},${y0} V${y1}`,
@@ -653,7 +663,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
         h: G.barH,
       }),
     )
-    trainCx = G.innerX + G.innerW * 0.4
+    trainCx = G.innerX + G.innerW * G.trainShare
   }
 
   // 별도 테스트 데이터 카드의 막대. 회색은 같은 모양으로 파란 조각 밑에 깔린다.
@@ -689,7 +699,7 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
   // --- 높이와 자리.
   const p1Y = G.rowY
   const p3Y = newChipsY
-  const p2Y = !has('p2') ? p1Y : testBarY !== null ? testBarY + G.barH / 2 : splitY + 56
+  const p2Y = !has('p2') ? p1Y : testBarY !== null ? testBarY + G.barH / 2 : splitY + G.p2BelowSplit
   const evalY = has('p2') ? p2Y : G.evalFallbackY
   const trunkX = G.prepX + G.prepW / 2
   const spots: Spots = {
@@ -737,10 +747,10 @@ export function layoutOf(model: FlowModel, input: FlowLayoutInput): FlowLayout {
           pending: branches.every((edge) => edge.state === 'pending'),
           dot: { x: trunkX, y: spots.junctionY },
           label: {
-            x: trunkX + 10,
+            x: trunkX + G.basisLabelLeft,
             y: p1Y + G.basisLabelDrop,
             w: G.basisLabelW,
-            h: 24,
+            h: G.lineH,
           },
         }
 

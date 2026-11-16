@@ -743,13 +743,6 @@
   color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
 }
 
-/* 이름표(학습 상자 위). */
-@utility flow-tag {
-  background: color-mix(in srgb, var(--color-chart-5) 12%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-chart-5) 40%, transparent);
-  color: color-mix(in srgb, var(--color-chart-5) 50%, var(--color-ink));
-}
-
 /*
  * 칩(데이터 카드의 특성·타깃, 학습 상자의 유형). **테두리가 바탕과 3:1을 넘는다** — 옅은 `line` 테두리는 학교의
  * 낮은 품질 모니터에서 안 보였다. 글자는 잉크, 바탕은 가라앉은 면이다. 아직 안 한 일(유형 미정)은 점선 테두리와
@@ -767,13 +760,6 @@
   border-width: 1px;
   border-style: solid;
   border-color: transparent;
-  color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
-}
-
-/* 이름표가 아직 안 한 일일 때(유형을 안 골랐다). 점선 테두리와 흐린 잉크, 면은 비운다. */
-@utility flow-tag-pending {
-  background: transparent;
-  border: 1px solid transparent;
   color: color-mix(in srgb, var(--color-ink-faint) 60%, var(--color-ink));
 }
 
