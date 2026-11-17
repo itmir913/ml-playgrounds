@@ -85,6 +85,8 @@ describe('요약은 메타에서 나온다', () => {
       studentName: '김하나',
       // **파일이 어느 프로젝트에서 나왔는지도 남는다** (§8.21) — 명렬이 이것으로 짝을 묶는다.
       projectId: '550e8400-e29b-41d4-a716-446655440000',
+      // **수정한 날짜도 남는다** — 마감 판정의 출처다 (open-decisions.md 121).
+      updatedAt: '2026-09-18T00:00:00.000Z',
       dataType: 'tabular',
       experiments: 0,
       runs: 0,
@@ -211,12 +213,18 @@ describe('명렬을 바꾸면 옛 결과는 버린다', () => {
 describe('명렬을 정렬한다', () => {
   const items = rosterOf([picked('c.mlpx'), picked('a.mlpx'), picked('b.mlpx')])
 
-  function read(name: string, experiments: number, studentName?: string): RosterSummary {
+  function read(
+    name: string,
+    experiments: number,
+    studentName?: string,
+    updatedAt = '2026-11-20T15:00:00.000Z',
+  ): RosterSummary {
     return {
       state: 'read',
       name,
       ...(studentName === undefined ? {} : { studentName }),
       projectId: name,
+      updatedAt,
       dataType: 'tabular',
       experiments,
       runs: experiments * 2,
@@ -284,6 +292,55 @@ describe('명렬을 정렬한다', () => {
     ])
   })
 
+  /** 마감 열의 정렬 (open-decisions.md 121). 시점으로 견주므로 적은 꼴(`Z`·`+09:00`)이 달라도 된다. */
+  it('수정한 날짜순으로 세우고, 같은 시각은 이름표로 가른다', () => {
+    const times = new Map<string, RosterSummary>([
+      ['a.mlpx', read('가', 1, undefined, '2026-11-21T00:00+09:00')],
+      ['b.mlpx', read('나', 1, undefined, '2026-11-20T16:00:00.000Z')],
+      ['c.mlpx', read('다', 1, undefined, '2026-11-20T15:00:00.000Z')],
+    ])
+    // a와 c는 같은 시점이다.
+    expect(sortRoster(items, times, 'updatedAt').map((one) => one.label)).toEqual([
+      'a.mlpx',
+      'c.mlpx',
+      'b.mlpx',
+    ])
+    expect(sortRoster(items, times, 'updatedAt', true).map((one) => one.label)).toEqual([
+      'b.mlpx',
+      'a.mlpx',
+      'c.mlpx',
+    ])
+  })
+
+  it('못 읽는 수정한 날짜는 동점이라 이름표로 가른다', () => {
+    const broken = new Map<string, RosterSummary>([
+      ['a.mlpx', read('가', 1, undefined, 'not a time')],
+      ['b.mlpx', read('나', 1, undefined, 'not a time')],
+      ['c.mlpx', read('다', 1, undefined, 'not a time')],
+    ])
+    // **뒤집은 배열을 준다** — `rosterOf`가 이미 이름표순이라, 그대로 주면 동점을 안 갈라도
+    // 안정 정렬이 같은 답을 낸다.
+    const reversed = [...items].reverse()
+    expect(sortRoster(reversed, broken, 'updatedAt').map((one) => one.label)).toEqual([
+      'a.mlpx',
+      'b.mlpx',
+      'c.mlpx',
+    ])
+  })
+
+  it('수정한 날짜로 뒤집어도 못 읽은 줄은 뒤다', () => {
+    const partial = new Map<string, RosterSummary>([
+      ['a.mlpx', { state: 'unreadable', code: 'PROJECT_FILE_VERSION_TOO_NEW' }],
+      ['b.mlpx', read('나', 1, undefined, '2026-11-20T16:00:00.000Z')],
+      ['c.mlpx', read('다', 1, undefined, '2026-11-20T15:00:00.000Z')],
+    ])
+    expect(sortRoster(items, partial, 'updatedAt', true).map((one) => one.label)).toEqual([
+      'b.mlpx',
+      'c.mlpx',
+      'a.mlpx',
+    ])
+  })
+
   it('원래 배열을 안 건드린다 - 화면이 든 목록이 정렬로 흔들리면 안 된다', () => {
     const before = items.map((one) => one.label)
     sortRoster(items, summaries, 'runs', true)
@@ -304,10 +361,17 @@ describe('학번과 이름을 고쳐 둔다', () => {
     studentId: '10101',
     studentName: '김하나',
     projectId: '550e8400-e29b-41d4-a716-446655440000',
+    updatedAt: '2026-11-20T15:00:00.000Z',
     dataType: 'tabular',
     experiments: 1,
     runs: 2,
   }
+
+  it('고쳐도 수정한 날짜는 남는다 - 마감 판정이 고친 줄에서 사라지면 안 된다', () => {
+    expect(withEdit(summary, { studentName: '김하나라' })).toMatchObject({
+      updatedAt: '2026-11-20T15:00:00.000Z',
+    })
+  })
 
   it('고친 값이 요약을 덮는다', () => {
     const fixed = withEdit(summary, { studentName: '김하나라' })
@@ -364,6 +428,7 @@ describe('같은 프로젝트에서 나온 줄을 묶는다', () => {
       state: 'read',
       name: '붓꽃 분류',
       projectId,
+      updatedAt: '2026-11-20T15:00:00.000Z',
       dataType: 'tabular',
       experiments: 1,
       runs: 1,
@@ -551,6 +616,7 @@ describe('학번과 이름은 누군가 적었을 때만 열이 된다', () => {
       name: '붓꽃 분류',
       ...student,
       projectId: 'P1',
+      updatedAt: '2026-11-20T15:00:00.000Z',
       dataType: 'tabular',
       experiments: 1,
       runs: 1,

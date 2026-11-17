@@ -13,6 +13,7 @@
  */
 
 import {
+  CalendarClock,
   ChartColumn,
   ArrowRight,
   Check,
@@ -141,4 +142,6 @@ export const ACTION_ICONS = {
   zoomIn: ZoomIn,
   zoomOut: ZoomOut,
   fitAll: Maximize,
+  /** 점검 화면의 마감을 정한다 (open-decisions.md 121). 날짜와 시각을 함께 고르는 일이다. */
+  setDeadline: CalendarClock,
 } as const satisfies Record<string, LucideIcon>

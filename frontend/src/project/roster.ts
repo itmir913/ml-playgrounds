@@ -52,6 +52,11 @@ export type RosterSummary =
        * (`sameProjectsOf`).
        */
       readonly projectId: string
+      /**
+       * 수정한 날짜 (`manifest.updatedAt`). **마감 판정의 출처다** (open-decisions.md 121) —
+       * 늘 시간대가 붙은 값이라 시점끼리 견준다.
+       */
+      readonly updatedAt: string
       readonly dataType: DataType
       readonly experiments: number
       readonly runs: number
@@ -146,6 +151,7 @@ export function summaryOf(document: ProjectDocument): RosterSummary {
     ...filled('studentId', student?.studentId),
     ...filled('studentName', student?.name),
     projectId: document.manifest.projectId,
+    updatedAt: document.manifest.updatedAt,
     dataType: document.manifest.dataType,
     experiments: experiments.length,
     runs: experiments.reduce((count, experiment) => count + experiment.runs.length, 0),
@@ -188,6 +194,7 @@ export function withEdit(summary: RosterSummary, edit: StudentEdit | undefined):
     ...filled('studentId', edit.studentId ?? summary.studentId),
     ...filled('studentName', edit.studentName ?? summary.studentName),
     projectId: summary.projectId,
+    updatedAt: summary.updatedAt,
     dataType: summary.dataType,
     experiments: summary.experiments,
     runs: summary.runs,
@@ -330,6 +337,11 @@ export const ROSTER_SORTS = [
    * 훑어야 하는데, 그 찾기가 교사가 하려는 일의 전부다.
    */
   'sameProject',
+  /**
+   * 수정한 날짜 순 (open-decisions.md 121). **마감 열이 이것으로 선다** — 시각 순이면 경과와
+   * 이내가 저절로 갈리고, 판정 안에서는 시각 순이다.
+   */
+  'updatedAt',
 ] as const
 
 export type RosterSort = (typeof ROSTER_SORTS)[number]
@@ -401,5 +413,8 @@ function compare(
   if (sort === 'studentId') return (a.studentId ?? '').localeCompare(b.studentId ?? '')
   if (sort === 'studentName') return (a.studentName ?? '').localeCompare(b.studentName ?? '')
   if (sort === 'name') return a.name.localeCompare(b.name)
+  // **못 읽는 시각은 동점이다** — 이름표가 가른다. 스키마가 시간대 붙은 값만 받아 드물다.
+  // 무는 검사: `roster.spec.ts`의 *"못 읽는 수정한 날짜는 동점"*.
+  if (sort === 'updatedAt') return Date.parse(a.updatedAt) - Date.parse(b.updatedAt) || 0
   return a[sort] - b[sort]
 }

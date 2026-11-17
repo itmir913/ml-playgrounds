@@ -30,6 +30,15 @@
     "runs": "Trained models",
     "file": "File name",
     "state": "Status",
+    "deadline": {
+      "set": "Set deadline",
+      "field": "Deadline date and time",
+      "column": "Deadline",
+      "late": "Past deadline",
+      "onTime": "On time",
+      "note": "Judged by the modified date recorded in the file, which follows the clock on the student's device. The deadline applies to this list only and is lost when you reopen the browser.",
+      "clear": "Clear deadline"
+    },
     "noExperiment": "No experiments yet.",
     "studentId": "Student number",
     "studentName": "Name",

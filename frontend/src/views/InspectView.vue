@@ -38,6 +38,7 @@ import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readDataset, readTestDataset } from '@/project/dataset'
 import { MLPX_ACCEPT } from '@/project/format'
+import { deadlineVerdict, type DeadlineVerdict } from '@/project/deadline'
 import { downloadBlob } from '@/project/download'
 import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import {
@@ -55,6 +56,7 @@ import IntegrityPanel from './inspect/IntegrityPanel.vue'
 import PortfolioPanel from './inspect/PortfolioPanel.vue'
 import SameProjectPanel from './inspect/SameProjectPanel.vue'
 import StudentEditor from './inspect/StudentEditor.vue'
+import DeadlineSetter from './inspect/DeadlineSetter.vue'
 import ReproducePanel from './inspect/ReproducePanel.vue'
 import ExperimentDetail from './results/ExperimentDetail.vue'
 import ExperimentList from './results/ExperimentList.vue'
@@ -112,6 +114,30 @@ const mode = ref<(typeof VIEW_MODES)[number]['id']>('model')
 /** 지금 정렬 기준. 기본은 이름표순이라 **폴더째 고르면 반이 묶여 선다.** */
 const sort = ref<RosterSort>('label')
 const descending = ref(false)
+
+/**
+ * 교사가 정한 마감 (open-decisions.md 121). **이 화면에만 산다** — 학번·이름 고침과 같은
+ * 규칙이라, 명렬을 갈아 끼워도 남고(`watch(roster.items)`가 안 건드린다) 새로 열면 사라진다.
+ */
+const deadline = ref<number | null>(null)
+
+/**
+ * 마감을 바꾼다. **풀 때 정렬이 마감 열이면 이름표순으로 돌린다** — 열이 사라진 뒤에
+ * 머리가 없는 기준으로 서 있으면 교사가 그 순서를 되돌릴 곳이 없다.
+ */
+function setDeadline(next: number | null): void {
+  deadline.value = next
+  if (next === null && sort.value === 'updatedAt') {
+    sort.value = 'label'
+    descending.value = false
+  }
+}
+
+/** 그 줄의 판정. 마감이 없거나 못 읽은 줄은 `null`이다. 판정은 `deadlineVerdict` 하나다. */
+function verdictOf(label: string): DeadlineVerdict | null {
+  const summary = roster.summaries.value.get(label)
+  return summary?.state === 'read' ? deadlineVerdict(summary.updatedAt, deadline.value) : null
+}
 
 /**
  * 고른 것을 명렬로 바꾼다. **입구 둘이 여기서 하나가 된다.**
@@ -217,6 +243,12 @@ function sortBy(key: RosterSort | null): void {
   descending.value = sort.value === key ? !descending.value : false
   sort.value = key
 }
+
+/** 열어 본 파일이 마감을 넘겼는가. 요약 카드의 수정한 날짜가 이것으로 강조된다. */
+const openedLate = computed(() => {
+  const file = viewing.value?.file
+  return file ? deadlineVerdict(file.document.manifest.updatedAt, deadline.value) === 'late' : false
+})
 
 const summaryOfOpened = computed(() =>
   opened.value ? roster.summaries.value.get(opened.value.label) : undefined,
@@ -331,10 +363,13 @@ const rows = computed(() =>
     (item) => {
       const summary = roster.summaries.value.get(item.label)
       const read = summary?.state === 'read' ? summary : undefined
+      const verdict = verdictOf(item.label)
       return {
         item,
         /** 값이 아직 없는 줄. 회색으로 두어 훑는 눈이 건너뛴다. */
         faint: !read,
+        /** 마감이 지났다. **칸은 글자색만 바뀐다** — 배경은 고른 줄의 색이 쓴다. */
+        late: verdict === 'late',
         /** 열마다 그 칸에 설 글자. **열쇠가 `COLUMNS`의 것과 같다** — 표가 이것으로 선다. */
         cells: {
           label: item.label,
@@ -349,6 +384,14 @@ const rows = computed(() =>
           // `inspect-experiment-count.spec.ts`가 문다.
           experiments: read ? t('results.experimentCount', read.experiments) : '',
           runs: read ? t('meta.countUnit', read.runs) : '',
+          // 마감 열. **판정이 없는 줄은 `상태`와 같은 글자를 적는다** — 마감을 켜면 `상태`가 좁은
+          // 화면에서 접히므로(`COLUMNS`), 여기가 비면 못 여는 파일이 왜 비었는지 표에서 사라진다.
+          updatedAt:
+            verdict !== null
+              ? t(`inspect.deadline.${verdict}`)
+              : summary
+                ? t('inspect.unreadable')
+                : t('inspect.reading'),
           state: read
             ? t(`dataTypes.${read.dataType}`)
             : summary
@@ -377,6 +420,11 @@ interface InspectColumn {
   align: 'left' | 'right'
   /** 좁은 화면에서 접는 열. 제출물 이름과 상태만 남는다. */
   wide: boolean
+  /**
+   * `wide`보다 넓은 폭까지 접을 때의 클래스. **마감을 켰을 때의 `상태`만 쓴다** (`COLUMNS`).
+   * Tailwind가 보도록 클래스 글자를 통째로 적는다.
+   */
+  fold?: string
   /**
    * 그 열의 **최소** 너비. 머리 글자가 접히지 않을 만큼 준다 — 접히면 머리 줄의 높이가
    * 열마다 달라지고, 정렬로 화살표가 붙고 떨어질 때 그 높이가 흔들린다.
@@ -503,6 +551,26 @@ const GROUP_COLUMN: InspectColumn = {
 }
 
 /**
+ * 마감 열 (open-decisions.md 121). **정렬 기준은 수정한 날짜다** — 열쇠가 같아서 머리의 화살표가
+ * 이 열에 선다. 시각 순이면 경과와 이내가 저절로 갈린다.
+ *
+ * **좁은 화면에서도 남는다** — 교사가 일부러 켠 열이라 거기서 접히면 켠 것이 안 보인다.
+ *
+ * **판정 글자는 띄어쓰기에서 접힌다** (2026-11-17 실측). 한 줄로 묶었더니 1024px에서 표가
+ * 121px 넘쳐 `상태`가 화면 밖으로 밀렸다 — 묶음 열이 섰을 때 18px 모자랐던 그 자리다.
+ * 줄은 파일 이름이 이미 두 줄이라 높이가 안 흔들린다.
+ */
+const DEADLINE_COLUMN: InspectColumn = {
+  key: 'updatedAt',
+  label: 'inspect.deadline.column',
+  sort: 'updatedAt',
+  align: 'left',
+  wide: false,
+  width: 'min-w-20',
+  cell: '',
+}
+
+/**
  * 지금 표가 세울 열들. **묶음이 하나도 없으면 그 열은 아예 없다** — 빈 열은 폭만 먹고
  * 아무 말도 안 한다(§8.21의 "전부가 한 묶음이면 아무 표시도 안 한다"와 같은 이유다).
  *
@@ -520,9 +588,20 @@ const COLUMNS = computed<readonly InspectColumn[]>(() => {
       (column.key !== 'studentId' || inUse.studentId) &&
       (column.key !== 'studentName' || inUse.studentName),
   )
-  return sameProject.value.files === 0 || sameProject.value.all
-    ? shown
-    : [shown[0]!, GROUP_COLUMN, ...shown.slice(1)]
+  const grouped =
+    sameProject.value.files === 0 || sameProject.value.all
+      ? shown
+      : [shown[0]!, GROUP_COLUMN, ...shown.slice(1)]
+  // **마감 열은 마감을 정했을 때만 선다** (open-decisions.md 121). 자리는 `상태` 바로 앞이다.
+  if (deadline.value === null) return grouped
+  /**
+   * **마감을 켜면 `상태`가 1280px 아래에서 접힌다** (2026-11-17, 코드 소유자). 1024px에서 여덟
+   * 열이 전부 최소 폭인데도 표가 66px 넘쳐 `상태`가 화면 밖으로 밀렸다. 마감을 가르는 동안
+   * 가장 덜 보는 열이고, 못 여는 파일의 사유는 누르면 아래 상세가 말한다.
+   * 무는 검사: `inspect-deadline.spec.ts`의 *"상태는 넓은 화면에서만"*.
+   */
+  const state = { ...grouped.at(-1)!, fold: 'hidden xl:table-cell' }
+  return [...grouped.slice(0, -1), DEADLINE_COLUMN, state]
 })
 
 /**
@@ -734,6 +813,7 @@ function reasonOf(code: string): string {
           <component :is="ACTION_ICONS.openFile" :size="18" aria-hidden="true" />
           {{ t('inspect.pickFiles') }}
         </AppButton>
+        <DeadlineSetter :deadline="deadline" @set="setDeadline" />
 
         <template #end>
           <AppButton :lock="busyLock" :action="downloadPortfolios">
@@ -783,7 +863,7 @@ function reasonOf(code: string): string {
                 :class="[
                   column.width,
                   alignClass(column),
-                  column.wide ? 'hidden md:table-cell' : '',
+                  column.fold ?? (column.wide ? 'hidden md:table-cell' : ''),
                 ]"
               >
                 <!--
@@ -851,7 +931,7 @@ function reasonOf(code: string): string {
                 :class="[
                   alignClass(column),
                   column.cell,
-                  column.wide ? 'hidden md:table-cell' : '',
+                  column.fold ?? (column.wide ? 'hidden md:table-cell' : ''),
                 ]"
               >
                 <!--
@@ -870,6 +950,14 @@ function reasonOf(code: string): string {
                   v-else-if="column.key === 'state'"
                   :class="row.faint ? 'text-ink-faint' : 'text-ink-soft'"
                 >
+                  {{ row.cells[column.key] }}
+                </span>
+                <!-- 마감이 지난 줄은 **글자색만** 바뀐다(배경 그대로). 이내는 평문이다. -->
+                <span v-else-if="column.key === 'updatedAt' && row.late" class="text-danger">
+                  {{ row.cells[column.key] }}
+                </span>
+                <!-- 판정이 없는 줄(읽는 중·못 읽음)은 `상태` 칸처럼 회색이다. -->
+                <span v-else-if="column.key === 'updatedAt' && row.faint" class="text-ink-faint">
                   {{ row.cells[column.key] }}
                 </span>
                 <!--
@@ -986,7 +1074,7 @@ function reasonOf(code: string): string {
               <aside :class="PANEL">
                 <!-- **제목이 첫 줄이다** (2026-09-18, 사용자). 학생이 이 프로젝트를 뭐라고
                    불렀는지가 요약의 머리에 선다 — 파일 이름과 다를 수 있다. -->
-                <ProjectSummary :file="viewing.file" with-name />
+                <ProjectSummary :file="viewing.file" with-name :late="openedLate" />
                 <!--
                   **프로젝트 흐름도는 그림이 아니라 단추 하나다** (§8.22). 점검은 읽는 화면이라 그림을 미리 그리지
                   않는다 — 누르면 학생이 쓰던 것과 같은 창이 열리고, 행 수는 계획을 거치지 않고 윤곽으로 그린다.

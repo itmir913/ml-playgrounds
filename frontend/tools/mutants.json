@@ -725,6 +725,22 @@
       "expect": "silent",
       "loses": "계수 표가 결과 화면에서 통째로 사라져도 관문이 초록이다 — 픽스처에 run.model이 없어 hasData가 거짓이다 (R36 B-3)",
       "expectSpecs": ["tests/metric-panels.spec.ts", "tests/results-screen.spec.ts"]
+    },
+    {
+      "file": "src/project/deadline.ts",
+      "find": "  return at >= deadline + MINUTE_MS ? 'late' : 'onTime'",
+      "replace": "  return at > deadline + MINUTE_MS ? 'late' : 'onTime'",
+      "expect": "cries",
+      "loses": "마감 다음 분 0초에 저장한 파일이 이내로 판정된다 (open-decisions.md 121의 \"그 분까지 이내\")",
+      "expectSpecs": ["tests/deadline.spec.ts"]
+    },
+    {
+      "file": "src/project/roster.ts",
+      "find": "  if (sort === 'updatedAt') return Date.parse(a.updatedAt) - Date.parse(b.updatedAt) || 0",
+      "replace": "  if (sort === 'updatedAt') return Date.parse(a.updatedAt) - Date.parse(b.updatedAt)",
+      "expect": "cries",
+      "loses": "못 읽는 수정한 날짜끼리 NaN을 돌려 이름표 가르기를 건너뛴다 — 순서가 읽은 순서에 달린다 (open-decisions.md 121)",
+      "expectSpecs": ["tests/roster.spec.ts"]
     }
   ]
 }

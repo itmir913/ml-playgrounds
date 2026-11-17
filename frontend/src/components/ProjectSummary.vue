@@ -26,9 +26,14 @@ import { totalBytes } from '@/project/storage'
  * 이 카드가 통째로 비었다 — 교사가 제출물에서 가장 먼저 보는 줄들이 그것이다
  * (open-decisions.md "점검은 읽기 전용 열람기다").
  */
-const props = withDefaults(defineProps<{ file: ProjectFile; withName?: boolean }>(), {
-  withName: false,
-})
+/**
+ * **`late`는 판정을 받기만 한다** (open-decisions.md 121). 점검 화면이 교사의 마감으로 가른
+ * 결과이고, 학생 화면은 안 넘기므로 늘 거짓이다 — 여기서 판단을 만들지 않는다.
+ */
+const props = withDefaults(
+  defineProps<{ file: ProjectFile; withName?: boolean; late?: boolean }>(),
+  { withName: false, late: false },
+)
 
 const { t } = useI18n()
 const format = useFormat()
@@ -126,7 +131,9 @@ const info = computed(() => {
 
       <div class="flex justify-between gap-4">
         <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.updated') }}</dt>
-        <dd class="text-right">{{ format.dateTime(info.manifest.updatedAt) }}</dd>
+        <dd class="text-right" :class="props.late ? 'font-bold text-danger' : ''">
+          {{ format.dateTime(info.manifest.updatedAt) }}
+        </dd>
       </div>
       <div class="flex justify-between gap-4">
         <dt class="shrink-0 font-bold whitespace-nowrap text-ink-soft">{{ t('meta.size') }}</dt>

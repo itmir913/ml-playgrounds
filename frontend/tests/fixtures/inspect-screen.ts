@@ -26,15 +26,18 @@ export async function submissionFile(
   name: string,
   projectId?: string,
   student?: { studentId?: string; name?: string },
+  /** 수정한 날짜. **마감 판정이 이것으로 선다** (open-decisions.md 121). */
+  updatedAt?: string,
 ): Promise<File> {
   const base = emptyProjectFile()
   const manifest = {
     ...base.document.manifest,
     ...(projectId === undefined ? {} : { projectId }),
     ...(student === undefined ? {} : { student }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
   }
   const document =
-    projectId === undefined && student === undefined
+    projectId === undefined && student === undefined && updatedAt === undefined
       ? base.document
       : { ...base.document, manifest }
   const { bytes } = await writeProjectBytes({ ...base, document }, '# 포트폴리오\n')

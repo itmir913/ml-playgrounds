@@ -47,6 +47,7 @@ import { PER_CLASS_METRICS } from '../src/ml/results'
 import { CHART_BLOCKS, CHART_TOOLS } from '../src/data/charts'
 import { COLUMN_KINDS } from '../src/ml/preprocess'
 import { FEATURE_NOTES, requiredTargetKind } from '../src/ml/selection'
+import { DEADLINE_VERDICTS } from '../src/project/deadline'
 import { EXPORT_STATES } from '../src/project/export-state'
 import { parsePortfolioForm } from '../src/project/portfolio-form'
 import {
@@ -456,7 +457,7 @@ describe('프런트엔드 전용 코드', () => {
     expect([...new Set(used)].filter((name) => !names.has(name))).toEqual([])
   })
 
-  it('열 자료형·내보내기 상태·언어·데이터 종류마다 이름이 있다', () => {
+  it('열 자료형·내보내기 상태·언어·데이터 종류·마감 판정마다 이름이 있다', () => {
     // 넷 다 화면이 값으로 키를 조립하는 자리다. 값을 늘리는 사람이 문구를 함께 넣게 한다.
     // **포트폴리오 문항은 여기 없다.** 문구가 로케일을 떠나 `public/`의 프리셋 파일로
     // 갔다 - 쓴 사람의 말이라 애초에 번역 대상이 아니다 (mlpx-spec.md §8.5).
@@ -465,6 +466,7 @@ describe('프런트엔드 전용 코드', () => {
       ['save', EXPORT_STATES],
       ['language', LOCALE_TAGS],
       ['dataTypes', DATA_TYPES],
+      ['inspect.deadline', DEADLINE_VERDICTS],
     ] as const
 
     for (const [namespace, codes] of pairs) {
@@ -921,6 +923,7 @@ describe('화면이 부르는 키가 로케일에 있다', () => {
     'save.', //   〃
     'language.', //   〃
     'dataTypes.', //   〃
+    'inspect.deadline.', //   〃 (마감 판정, open-decisions.md 121)
     'portfolio.preset.', // 지원 언어마다 내장 양식 파일이 있다 (portfolio-preset.spec.ts)
     'metrics.', // 지표마다 이름과 설명이 있다
     'metricHelp.', //   〃
