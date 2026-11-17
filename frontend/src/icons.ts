@@ -53,7 +53,7 @@ import {
 
 import type { StepId } from '@/router/steps'
 
-/** 제품 표시. 도구 막대 왼쪽 끝에 있다. */
+/** 제품 표시. 툴바 왼쪽 끝에 있다. */
 export const BRAND_ICON: LucideIcon = Shapes
 
 /** 프로젝트 홈. 단계가 아니라 그 위에 있는 자리다. */

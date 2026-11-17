@@ -119,7 +119,7 @@ describe('완성본에서도 목차가 데려간다', () => {
     expect(view.find(`#portfolio-section-${id}`).exists()).toBe(true)
   })
 
-  it('프로젝트 요약은 완성본에 없다 - 도구 막대에 이미 붙박이로 있다', async () => {
+  it('프로젝트 요약은 완성본에 없다 - 툴바에 이미 붙박이로 있다', async () => {
     const view = mountView()
     const start = view.findAll('button').find((button) => button.text() === '빈 양식에서 시작')
     await start?.trigger('click')

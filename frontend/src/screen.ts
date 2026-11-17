@@ -87,7 +87,7 @@ export function nearestScrollport(element: Element): Element | null {
  *
  * **더하는 것은 좌표 변환뿐이다.** `scroll-margin-top`은 **굴리는 상자**의 기준이고
  * `IntersectionObserver`의 여백은 **뷰포트** 기준이다. 넓은 화면에서 굴리는 것은 문서가
- * 아니라 `<main>`이고(`AppShell`의 `md:overflow-auto`) 그 상자는 도구 막대 높이만큼
+ * 아니라 `<main>`이고(`AppShell`의 `md:overflow-auto`) 그 상자는 툴바 높이만큼
  * 내려와 있다 — **한 번 고쳤는데도 넓은 화면에서만 여전히 어긋났던 이유가 이것이다.**
  * 좁은 화면에서는 문서가 굴러서 두 좌표계가 같고, 그래서 거기서는 우연히 맞았다.
  *

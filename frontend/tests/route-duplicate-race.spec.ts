@@ -4,7 +4,7 @@
  *
  * 지금 주소로 가는 이동은 vue-router가 가드를 안 돌리고 중복(DUPLICATED)으로 접는다. 그래도 받는 중이던 앞 이동은
  * vue-router 쪽에서 버려진다 — 그런데 우리 가드의 차례는 가드가 돌 때만 오르므로, 앞 이동이 버려진 줄 모르고
- * 끝까지 돌아 프로젝트를 닫거나 연다. 레일의 지금 칸과 도구 막대의 목록 링크는 지금 주소로도 눌린다.
+ * 끝까지 돌아 프로젝트를 닫거나 연다. 레일의 지금 칸과 툴바의 목록 링크는 지금 주소로도 눌린다.
  *
  * **진짜 입구로 잰다** — 실제 라우터를 태우고, 느린 청크는 그 화면 모듈의 `import()`가 손잡이를 기다리게 한다.
  * 화면 모듈은 처음 받을 때만 기다리므로 **검사마다 다른 화면의 손잡이를 쓴다**(`route-chunk-race.spec.ts`와 같다).
@@ -137,7 +137,7 @@ describe('화면을 받는 사이 지금 칸을 다시 누른다', { timeout: 20
     // 앞 이동: 목록에서 프로젝트로. 청크가 아직 안 왔다.
     const first = router.push(`/project/${manifest.projectId}`).catch(() => undefined)
     await vi.waitFor(() => expect(gates.home.requested).toBe(true))
-    // 도구 막대의 목록 링크 — 지금 주소라 중복 이동이다.
+    // 툴바의 목록 링크 — 지금 주소라 중복 이동이다.
     const again = await router.push('/')
     expect(isNavigationFailure(again, NavigationFailureType.duplicated)).toBe(true)
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * **프로젝트 흐름도의 창을 여는 단추** (`architecture.md` §8.22) — 도구 막대의 단추(`components/FlowButton.vue`)와
+ * **프로젝트 흐름도의 창을 여는 단추** (`architecture.md` §8.22) — 툴바의 단추(`components/FlowButton.vue`)와
  * 점검 화면의 단추가 같은 이 부품이다. **파일만 받는다. 스토어를 읽지 않는다** — 점검은 스토어를 안 쓴다.
  *
  * **올린 데이터가 없으면 이유와 함께 잠근다** (`@/locks`의 `flow`). 숨기지 않는다 — 사라진 단추는 없는 기능이다.

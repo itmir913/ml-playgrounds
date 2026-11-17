@@ -141,7 +141,7 @@ describe('라우터', { timeout: 20_000 }, () => {
   })
 
   it('목록으로 나가면 열어 둔 프로젝트를 놓아준다', async () => {
-    // 안 놓아주면 도구 막대에 남의 이름이 계속 보이고 데이터셋 바이트가 붙들려 있다.
+    // 안 놓아주면 툴바에 남의 이름이 계속 보이고 데이터셋 바이트가 붙들려 있다.
     // **화면이 아니라 라우터가 한다** - 화면 생명주기에 맡기면 순서가 어긋난다.
     await saveProject(projectFile())
     await router.push(`/project/${manifest.projectId}/data`)
