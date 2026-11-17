@@ -144,6 +144,15 @@ describe('창은 열릴 때 강조가 켜져 있지 않고 Esc는 두 단계다'
     wrapper.unmount()
   })
 
+  it('바깥(바탕)을 눌러도 닫히지 않는다 — 판을 끌다 밖에서 놓아도 창을 지킨다', async () => {
+    // 무는 대상: `FlowDialog.vue`가 `AppDialog`에 주는 `persistent`. 빠지면 끌다 커서가 밖으로 나가 놓을 때 창이 닫힌다.
+    const wrapper = mountDialog()
+    await flushPromises()
+    await wrapper.find('dialog').trigger('click')
+    expect(wrapper.emitted('close'), 'backdrop click must not close').toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('창은 초점을 창 자신에 두고 연다 — 첫 단추가 강조를 켜지 않는다', () => {
     const wrapper = mountDialog()
     expect(wrapper.find('dialog').attributes('autofocus')).toBeDefined()
@@ -183,6 +192,26 @@ describe('대시보드 카드의 Esc와 빈 곳', () => {
     await flushPromises()
     expect(event.defaultPrevented).toBe(true)
     expect(wrapper.findAll('[aria-pressed="true"]')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('다른 대화상자가 열려 있어도 카드는 Esc를 안 받는다', async () => {
+    // 무는 대상: `FlowCard.vue`의 `dialog[open]` 가드. 없으면 다른 창을 닫으려는 Esc가 카드의 고정까지 푼다.
+    const wrapper = mountCard()
+    await flushPromises()
+    await learnOf(wrapper).trigger('click')
+    const other = document.createElement('dialog')
+    other.setAttribute('open', '')
+    document.body.append(other)
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    document.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.findAll('[aria-pressed="true"]').length).toBe(1)
+    other.remove()
+    // 짝: 열린 대화상자가 없으면 푼다.
+    const second = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    document.dispatchEvent(second)
+    expect(second.defaultPrevented).toBe(true)
     wrapper.unmount()
   })
 
@@ -297,6 +326,10 @@ describe('cancel이 와도 Esc의 순서를 따른다', () => {
 describe('판의 확대와 첫 화면', () => {
   /** 판이 그림보다 좁다 — 그림이 담기지 않는다. */
   const VIEWPORT = { w: 400, h: 600 }
+  /** 크기를 바꾼 검사가 다음 검사를 오염시키지 않게 되돌리는 값. */
+  const VIEWPORT_START = { ...VIEWPORT }
+  /** 가짜 `ResizeObserver`가 받아 둔 콜백. 크기를 바꾼 뒤 `resize()`가 부른다. */
+  let observers: (() => void)[] = []
   const PLANE = { w: FLOW_GEOMETRY.width, h: 900 }
   const BAR = { w: 200, h: 40 }
 
@@ -308,6 +341,19 @@ describe('판의 확대와 첫 화면', () => {
   }
 
   beforeEach(() => {
+    Object.assign(VIEWPORT, VIEWPORT_START)
+    observers = []
+    // jsdom에는 `ResizeObserver`가 없다 — 판의 크기가 바뀌는 길(`useElementSize`)을 흉내 낸다.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback)
+        }
+        observe(): void {}
+        disconnect(): void {}
+      },
+    )
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
       this: HTMLElement,
     ) {
@@ -322,7 +368,22 @@ describe('판의 확대와 첫 화면', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
+
+  /** 판의 크기를 바꾸고 관찰자에게 알린다. */
+  async function resize(size: Partial<typeof VIEWPORT>): Promise<void> {
+    Object.assign(VIEWPORT, size)
+    for (const notify of observers) notify()
+    await flushPromises()
+  }
+
+  /** 판의 `translate(x, y)`. */
+  function offsetOf(wrapper: ReturnType<typeof mountCanvas>): { x: number; y: number } {
+    const style = wrapper.find('.origin-top-left').attributes('style') ?? ''
+    const found = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(style)
+    return { x: Number(found?.[1] ?? Number.NaN), y: Number(found?.[2] ?? Number.NaN) }
+  }
 
   /** 지금 배율. 판의 `transform`에서 읽는다. */
   function scaleOf(wrapper: ReturnType<typeof mountCanvas>): number {
@@ -374,6 +435,100 @@ describe('판의 확대와 첫 화면', () => {
       )
     await flushPromises()
     expect(scaleOf(wrapper)).toBeLessThan(1)
+    wrapper.unmount()
+  })
+
+  it('휠은 판 위에서 화면이 스크롤되지 않게 막는다', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+    const event = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true })
+    wrapper.find('[role="group"]').element.dispatchEvent(event)
+    expect(event.defaultPrevented, 'wheel on the plane must not scroll the page').toBe(true)
+    wrapper.unmount()
+  })
+
+  // 아래 넷은 `FlowCanvas.vue`의 `settle`과 첫 화면의 배선이다. 무는 대상은 각 검사에 적었다.
+
+  it('만진 뒤에 판의 크기가 바뀌어도 첫 화면으로 덮지 않는다', async () => {
+    // 무는 대상: `settle`의 `moved` 가드. 없으면 [축소]로 맞춘 배율이 창 크기가 바뀔 때 100%로 되돌아간다.
+    const wrapper = mountCanvas()
+    await flushPromises()
+    await zoomButton(wrapper, 'flow.zoomOut')
+    const touched = scaleOf(wrapper)
+    expect(touched).toBeLessThan(1)
+    await resize({ w: 500 })
+    expect(scaleOf(wrapper), 'a touched view must survive a resize').toBe(touched)
+    wrapper.unmount()
+  })
+
+  it('[전체 보기] 뒤에 크기가 바뀌면 맞춤을 다시 건다 — 첫 화면(100%)으로 덮지 않는다', async () => {
+    // 무는 대상: `settle`의 `fitted` 분기.
+    const wrapper = mountCanvas()
+    await flushPromises()
+    await zoomButton(wrapper, 'flow.fit')
+    const before = scaleOf(wrapper)
+    await resize({ w: 300 })
+    const after = scaleOf(wrapper)
+    expect(after, 'refit to the smaller viewport').toBeLessThan(before)
+    expect(PLANE.w * after).toBeLessThanOrEqual(300)
+    wrapper.unmount()
+  })
+
+  it('좁은 폭에서는 확대 막대가 덮는 만큼 판을 내려 시작하고, 넓으면 내리지 않는다', async () => {
+    // 무는 대상: `topInset`의 계산과 `initialView`로의 배선. 막대가 데이터 카드의 위를 덮은 채 열리게 된다.
+    const narrow = mountCanvas()
+    await flushPromises()
+    expect(offsetOf(narrow).y).toBe(FLOW_GEOMETRY.startMargin * 2 + BAR.h)
+    narrow.unmount()
+    // 막대가 카드와 겹치지 않는 폭(그래도 그림 전체는 안 담기는 높이).
+    Object.assign(VIEWPORT, {
+      w: FLOW_GEOMETRY.cardX + FLOW_GEOMETRY.cardW + BAR.w + FLOW_GEOMETRY.startMargin * 2 + 1,
+      h: 300,
+    })
+    const wide = mountCanvas()
+    await flushPromises()
+    expect(offsetOf(wide).y).toBe(FLOW_GEOMETRY.startMargin)
+    wide.unmount()
+  })
+
+  /** 마우스 포인터 사건. jsdom에는 `PointerEvent`가 없어 `MouseEvent`에 id와 종류를 얹는다. */
+  function mouse(type: string, x: number, init: MouseEventInit = {}): MouseEvent {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 0, ...init })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+    return event
+  }
+
+  it('왼쪽 단추로만 끈다 — 오른쪽 단추로 누르면 판이 안 움직인다', async () => {
+    // 무는 대상: `onPointerDown`의 `button !== 0` 거름. 없으면 메뉴를 열었다 놓은 소식이 안 와 판이 붙어 다닌다.
+    const wrapper = mountCanvas()
+    await flushPromises()
+    const start = offsetOf(wrapper)
+    const group = wrapper.find('[role="group"]').element
+    group.dispatchEvent(mouse('pointerdown', 0, { button: 2, buttons: 2 }))
+    window.dispatchEvent(mouse('pointermove', FLOW_DRAG_THRESHOLD_PX * 8, { buttons: 2 }))
+    await flushPromises()
+    expect(offsetOf(wrapper)).toEqual(start)
+    // 짝: 왼쪽 단추로는 움직인다 — 위 검사가 늘 안 움직이는 판에서 초록이 아니다.
+    group.dispatchEvent(mouse('pointerdown', 0, { button: 0, buttons: 1 }))
+    window.dispatchEvent(mouse('pointermove', FLOW_DRAG_THRESHOLD_PX * 8, { buttons: 1 }))
+    window.dispatchEvent(mouse('pointerup', FLOW_DRAG_THRESHOLD_PX * 8))
+    await flushPromises()
+    expect(offsetOf(wrapper).x).not.toBe(start.x)
+    wrapper.unmount()
+  })
+
+  it('창 밖에서 놓아 단추가 이미 떼어졌으면(buttons 0) 끌기를 끝낸다', async () => {
+    // 무는 대상: `onPointerMove`의 `buttons === 0` 거름. 없으면 놓은 뒤에도 판이 마우스를 따라다닌다.
+    const wrapper = mountCanvas()
+    await flushPromises()
+    const start = offsetOf(wrapper)
+    wrapper
+      .find('[role="group"]')
+      .element.dispatchEvent(mouse('pointerdown', 0, { button: 0, buttons: 1 }))
+    window.dispatchEvent(mouse('pointermove', FLOW_DRAG_THRESHOLD_PX * 8, { buttons: 0 }))
+    await flushPromises()
+    expect(offsetOf(wrapper)).toEqual(start)
     wrapper.unmount()
   })
 })

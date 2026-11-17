@@ -8,7 +8,7 @@
  *
  * - 원 안 글자는 원의 바탕(그러데이션의 두 끝) 위에서 4.5.
  * - 카드 머리 글자는 카드(`surface`) 위에서 4.5.
- * - 윤곽 상자·원의 글자와 기준 글자는 그림 바탕(`surface-sunken`) 위에서 4.5와 4.3(`theme.css`가 적은 줄무늬의 하한).
+ * - 윤곽 상자·원의 글자와 기준 글자는 그림 바탕(`surface-sunken`) 위에서 4.5.
  * - 선과 화살촉은 `surface-sunken` 위에서 3(WCAG 1.4.11). **96이 걸린 색은 예외로 표기한다** — 팔레트를 안 건드린다.
  * - **회색 몫(`flow-bar-gray`)은 재지 않는다.** 정보가 아니라 비어 있음의 표시이고 이름표와 누르면 나오는 수가 말한다
  *   (`docs/rule-coverage.md`).
@@ -252,12 +252,13 @@ describe.each(THEMES)('%s에서의 대비', (file) => {
     }
   })
 
-  it('기준 글자가 그림 바탕 위에서 4.3 이상이다', () => {
+  it('기준 글자가 그림 바탕 위에서 4.5 이상이다', () => {
     const ratio = contrast(
       evaluate(declaration('flow-text-dim', 'color'), under(sunken, tintToken('basis'))),
       sunken,
     )
-    expect(ratio).toBeGreaterThanOrEqual(4.3)
+    // 실측은 라이트 6.80, 다크 8.53이라 4.5를 넘는다 — 줄무늬의 하한(4.34)이 아니라 일반 글자의 하한을 지킨다.
+    expect(ratio, `${file} basis text`).toBeGreaterThanOrEqual(4.5)
   })
 
   /**

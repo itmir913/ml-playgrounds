@@ -27,7 +27,7 @@ import {
   withTarget,
   withTaskType,
 } from '../src/project/settings'
-import type { ProjectDocument } from '../src/project/schema'
+import { tabularDataOf, type ProjectDocument } from '../src/project/schema'
 import { planRun } from '../src/ml/plan'
 import { surveyCsv, surveyProject, tabularProjectFrom } from './fixtures/prep-kind'
 
@@ -113,6 +113,26 @@ describe('표 · 계획이 선 경우', () => {
     expect(counts?.testFile).toEqual({ total: 40, usable: 39 })
   })
 
+  it('별도 테스트 파일의 회색 몫은 파일 전체에서 학습에 드는 수를 뺀 것이다', async () => {
+    // 무는 대상: `barValuesOf`의 `testFile` 칸. 이 칸을 `null`로 두거나 회색을 0으로 두면 별도 테스트 파일 막대가 늘 한 색이다.
+    const file = await surveyProject(true)
+    const imported = importTable(await openTable(surveyCsv(true), '시험.csv', { locale: 'ko' }))
+    const withTest = applyTestDataset(file, imported, {
+      fileName: '시험.csv',
+      hasHeader: true,
+      now: NOW,
+    }).project
+    // 시험 파일 40행 가운데 타깃이 빈 한 행이 빠진다.
+    expect(barValuesOf(await flowCountsOf(withTest))).toEqual({
+      train: 39,
+      test: 39,
+      gray: 1,
+      testFile: { usable: 39, gray: 1 },
+    })
+    // 점검은 행 수를 모르므로 막대가 없다.
+    expect(barValuesOf(flowCountsLite(withTest))).toBeNull()
+  })
+
   it('막대가 받는 모양으로 옮긴다 — 회색은 사용할 수 없는 몫과 추출하지 않은 몫의 합이다', async () => {
     const file = edited(await surveyProject(true), (document) => withSampling(document, 20, NOW))
     expect(barValuesOf(await flowCountsOf(file))).toEqual({
@@ -189,6 +209,31 @@ describe('표 · 전처리 모양', () => {
       withPreprocessing(document, { categoricalEncoding: 'none' }, NOW),
     )
     expect((await flowCountsOf(none))?.prep).toBe('preprocessOff')
+  })
+
+  it('기준 화살표는 학습에 드는 특성만으로 판정한다 — 결측을 그대로 두면 빠지는 수치 열은 안 센다', async () => {
+    // 결측이 있는 수치 열 하나만 특성이고 결측 처리가 "그대로 두기"이면 학습이 그 열을 뺀다(`FEATURE_HAS_MISSING`).
+    // 걸러 내지 않으면 스케일링이 켜져 있다는 이유로 구할 값이 없는데도 기준 화살표가 선다. 무는 검사는 이것이다
+    // (`ml/flow-counts.ts`의 `tabularShape`에서 `featureIssue` 거르기를 뭉개면 운다).
+    const lines = ['키,성별']
+    for (let i = 0; i < 40; i += 1)
+      lines.push(`${i === 7 ? '' : 150 + i},${i % 2 === 0 ? '남' : '여'}`)
+    const csv = new TextEncoder().encode(`${lines.join('\n')}\n`)
+    const file = await tabularProjectFrom(csv, '키.csv', {
+      taskType: 'classification',
+      target: '성별',
+      features: ['키'],
+      preprocessing: { missing: 'none', scaling: 'standard' },
+    })
+    expect(tabularDataOf(file.document)?.preprocessing).toMatchObject({
+      missing: 'none',
+      scaling: 'standard',
+    })
+    expect((await flowCountsOf(file))?.prep).toBe('preprocessOff')
+    expect(flowCountsLite(file)?.prep).toBe('preprocessOff')
+    // 짝: 결측을 채우면 같은 열이 학습에 들고 기준 화살표가 선다 — 위 검사가 늘 꺼진 채로 초록이 아니다.
+    const filled = edited(file, (document) => withPreprocessing(document, { missing: 'mean' }, NOW))
+    expect((await flowCountsOf(filled))?.prep).toBe('preprocess')
   })
 
   it('특성 수는 학습에 들어가는 수다 — 인코딩이 꺼진 범주 열은 안 센다', async () => {
@@ -399,6 +444,11 @@ describe('이미지', () => {
     ).project
     const counts = await flowCountsOf(applied)
     expect(counts).toMatchObject({ train: 12, test: 3, testFile: { total: 3, usable: 3 } })
+    expect(barValuesOf(counts)?.testFile).toEqual({ usable: 3, gray: 0 })
+    // 점검의 가벼운 입구도 별도 테스트 사진 수는 안다. 학습에 드는 수는 모른다.
+    // 무는 대상: `imageLite`의 `testFile` — `null`로 두면 점검에서 별도 테스트 카드가 사라진다.
+    expect(flowCountsLite(applied)?.testFile).toEqual({ total: 3, usable: null })
+    expect(flowCountsLite(base)?.testFile).toBeNull()
   })
 
   it('범주가 하나뿐이면 학습이 거절하는 모양이라 행 수는 비어 있다', async () => {

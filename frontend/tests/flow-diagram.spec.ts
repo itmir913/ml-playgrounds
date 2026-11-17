@@ -20,6 +20,7 @@ import { highlightOf } from '../src/ml/flow-highlight'
 import { FLOW_GEOMETRY, layoutOf } from '../src/ml/flow-layout'
 import { targetOf } from '../src/ml/flow-view'
 import { factsOf } from '../src/project/facts'
+import { withTarget } from '../src/project/settings'
 import { FLOW_HOVER_LINGER_MS, FLOW_HOVER_RELEASE_MS } from '../src/limits'
 import { FLOW_CASES, withRuns, withTask } from './fixtures/flow-cases'
 import { projectFile } from './fixtures/project'
@@ -112,6 +113,26 @@ describe('SVG 층과 HTML 층', () => {
     expect(wrapper.text()).not.toContain('특성 4개')
     // 두 카드의 칩이 모두 점선 빈 칩이다.
     expect(wrapper.findAll('.flow-chip-pending').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('학습 유형을 안 골랐으면 분할 줄은 비율을 지어내지 않고 "분할 미정"이다', () => {
+    // 무는 대상: `FlowDiagram.vue`의 `unsetTask` 분기 — 이 분기가 없으면 유형도 없는데 "분할 80 : 20"이 선다.
+    const text = mountDiagram({ file: withTask(projectFile(), undefined) }).text()
+    expect(text).toContain('분할 미정')
+    expect(text).not.toContain('분할 80 : 20')
+  })
+
+  it('타깃을 안 골랐으면 타깃 칩은 글자 없는 점선 칩이다', () => {
+    // 무는 대상: `FlowDiagram.vue`의 `chipsOf` — 타깃 칩의 `empty`와 글자 가림. 골랐을 때와 견준다.
+    const chosen = mountDiagram()
+    expect(chosen.text()).toContain('타깃 선택됨')
+    const file = projectFile()
+    file.document = withTarget(file.document, undefined, '2026-11-17T00:00:00Z')
+    const empty = mountDiagram({ file })
+    expect(empty.text()).not.toContain('타깃 선택됨')
+    expect(empty.findAll('.flow-chip-pending').length).toBe(
+      chosen.findAll('.flow-chip-pending').length + 1,
+    )
   })
 
   it('수를 알면 특성 수와 행 수가 선다', () => {
@@ -290,6 +311,21 @@ describe('누르면 고정하고 다시 누르면 푼다', () => {
     await learn.trigger('click')
     expect(wrapper.emitted('update:pinned')?.at(-1)).toEqual([null])
     expect(learn.attributes('aria-pressed')).toBe('false')
+  })
+
+  it('막대 조각도 눌린 상태가 aria-pressed로 선다 — 눌린 조각 하나만 true다', async () => {
+    // 무는 대상: `FlowDiagram.vue`의 막대 조각 단추 `:aria-pressed`. 고정해도 보조 기술이 눌린 것을 못 읽게 되면 운다.
+    const wrapper = mountDiagram()
+    const gray = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('aria-label') === '사용하지 않는 데이터')!
+    expect(gray.attributes('aria-pressed')).toBe('false')
+    await gray.trigger('click')
+    expect(wrapper.emitted('update:pinned')?.at(-1)).toEqual(['file:gray'])
+    expect(gray.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('[aria-pressed="true"]').length).toBe(1)
+    await gray.trigger('click')
+    expect(gray.attributes('aria-pressed')).toBe('false')
   })
 
   it('다른 노드를 누르면 고정이 그쪽으로 옮겨 간다', async () => {

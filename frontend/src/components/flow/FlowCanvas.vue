@@ -88,8 +88,9 @@ let settled = false
 let fitted = false
 
 function settle(): void {
-  // 창이 닫혀 판의 폭이 0이 되면 다음에 열릴 때 첫 화면을 다시 잡아야 한다.
-  if (viewportBox.value.w === 0) settled = false
+  // 폭이 0이면 아직 서지 않은 것이다(창이 열리기 전). 판은 닫힐 때 부품째 거두어지므로(`FlowHost`의 `v-if`, 무는
+  // 검사: `tests/flow-host.spec.ts`의 "라우트가 바뀌면 창을 닫는다") 닫힌 채 남아 다시 열리는 판은 없다 — 폭이 다시
+  // 0이 되어 첫 화면을 다시 잡아야 하는 길이 없다.
   if (moved || viewportBox.value.w === 0 || planeBox.value.w === 0) return
   // [전체 보기]를 누른 뒤에는 크기가 바뀌어도 맞춤을 다시 건다 — 첫 화면으로 덮지 않는다.
   view.value = fitted

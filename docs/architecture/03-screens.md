@@ -401,21 +401,25 @@ ProjectFile + ProjectFacts → flowModelOf → FlowModel ─┬→ 그림 하나
 
 - `components/flow/`가 그림(`FlowDiagram`)·판(`FlowCanvas`)·창(`FlowDialog`)·카드(`FlowCard`)·단추(`FlowOpenButton`)다.
   **전부 파일만 받고 스토어를 읽지 않는다** — `ui-rules.spec.ts`의 "받은 것을 그리는 부품은 스토어를 안 읽는다"가 이 디렉터리를
-  훑는다. 스토어를 읽는 얇은 껍데기는 밖에 있다(도구 막대의 `FlowButton`). 점검은 `FlowOpenButton`을 쓰고 `inspect-rules.spec.ts`가
+  훑는다. 스토어를 읽는 얇은 껍데기는 밖에 있다(툴바의 `FlowButton`). 점검은 `FlowOpenButton`을 쓰고 `inspect-rules.spec.ts`가
   임포트를 문다.
 - 창은 앱에 하나다 — `composables/useFlowDialog.ts`가 열린 요청을 쥐고, 앱 루트의 `FlowHost`가 지연해서 싣는다. 수는
-  `composables/useFlowCounts.ts`가 그림이 보일 때 `import()`로 구한다. 첫 화면의 꾸러미에 계획 코드가 안 실리는 것은
+  `composables/useFlowCounts.ts`가 그림이 보일 때 `import()`로 구한다. 첫 화면 번들에 계획 코드가 안 실리는 것은
   `flow-wiring.spec.ts`가 임포트를 읽어 문다.
 - 단추의 잠금은 `@/locks`의 `flow`다(이유 코드 `NO_DATA`). 이유는 종류가 주는 기존 문장이다.
 - 그림이 DOM에 서는 모양(SVG 층의 `aria-hidden`, 탭 순서, 고정과 풀림, 호버의 늦은 풀림)은 `flow-diagram.spec.ts`,
   카드의 폭 분기와 연결은 `flow-wiring.spec.ts`, 켜짐과 흐림의 판단은 `flow-view.spec.ts`, 판과 창의 DOM 규칙(빈 곳 누르기,
-  `Esc`의 두 단계)은 `flow-dialog.spec.ts`가 본다. 첫 화면의 꾸러미 검사는 정적 임포트를 끝까지 따라간다.
+  `Esc`의 두 단계)은 `flow-dialog.spec.ts`가 본다. 첫 화면 번들 검사는 정적 임포트를 끝까지 따라간다.
 - **흐름도 쪽 오류는 대시보드나 프로젝트 열기를 막지 않는다.** `components/flow/FlowGuard.vue`가 오류 경계다 — 안쪽이 그리다
   던지거나 지연 로딩이 실패하면 자리만 비우고 `failed`를 올리며, 오류는 콘솔에 남기고 삼키지 않아 앱의 전역 오류 알림까지 간다.
-  대시보드 카드·도구 막대의 단추·창이 모두 그 안에 있다. `flow-guard.spec.ts`가 경계를, `flow-error-notice.spec.ts`가 알림
+  대시보드 카드·툴바의 단추·창이 모두 그 안에 있다. `flow-guard.spec.ts`가 경계를, `flow-error-notice.spec.ts`가 알림
   (창의 청크를 못 받으면 `SCREEN_LOAD_FAILED`, 카드가 던져도 할 일·요약은 남는다)을, `flow-robust.spec.ts`가 어떤 프로젝트
   상태에서도 던지지 않음을 문다.
 - `components/FlowHost.vue`는 라우트가 바뀌면 창을 닫고, 닫으면 연 단추로 초점을 돌려주고, 경계가 `failed`를 올리면 요청을
   지운다 — `flow-host.spec.ts`가 문다.
+- **점검은 행 수를 구하려 계획을 세우지 않는다.** 단추의 `lite`가 요청과 창을 지나 `flowCountsLite`까지 이어진 것은
+  `inspect-rules.spec.ts`(단추)와 `flow-host.spec.ts`(창으로 넘김)와 `flow-lite-wiring.spec.ts`(진짜 창이 가벼운 입구만 부르고
+  계획 캐시를 안 채움)가 나눠 문다. 수를 구해 오는 길의 방어선(던지면 콘솔, 낡은 회차, 안 보이면 비움)은
+  `use-flow-counts.spec.ts`가 문다.
 
 ---

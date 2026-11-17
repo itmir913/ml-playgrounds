@@ -159,6 +159,11 @@ describe('점검 화면은 결과 화면의 부품을 쓴다', () => {
     expect(own.filter((name) => SHARED.includes(name))).toEqual([])
   })
 
+  it('점검의 흐름도 단추는 lite로 연다 — 행 수를 구하려 계획을 세우지 않는다', () => {
+    // 끊어지면 그림은 멀쩡히 서고 점검이 계획 캐시를 채울 뿐이라 눈에 안 보인다. 뒤의 배선은 `flow-lite-wiring.spec.ts`가 문다.
+    expect(body(VIEW)).toMatch(/<FlowOpenButton\b[^>]*\blite\b/)
+  })
+
   it('결과 화면의 재료를 짓는 함수도 공용이다', () => {
     // 전처리기 파싱과 실험 번호는 이미 있는 함수다. 여기서 다시 지으면 같은 파일을 보고
     // 두 화면이 다른 숫자를 말한다.

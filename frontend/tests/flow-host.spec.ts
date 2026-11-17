@@ -24,6 +24,8 @@ const behaviour = vi.hoisted(() => ({
   /** 남은 청크 실패 수. 지연 로더가 `default`를 꺼낼 때마다 하나씩 쓴다. */
   loadFailures: 0,
   file: null as unknown,
+  /** 창이 받은 `lite`. 점검이 행 수 없이 그리는 배선의 가운데 고리다(`flow-lite-wiring.spec.ts`가 끝까지 잇는다). */
+  lite: null as unknown,
 }))
 
 vi.mock('@/components/flow/FlowDialog.vue', async () => {
@@ -36,6 +38,7 @@ vi.mock('@/components/flow/FlowDialog.vue', async () => {
       return () => {
         // 창이 받은 파일을 남긴다 — 어느 파일을 그리는지를 본다.
         behaviour.file = props.file
+        behaviour.lite = props.lite
         return vue.h('button', { class: 'stub-close', onClick: () => emit('close') }, 'close')
       }
     },
@@ -71,6 +74,7 @@ beforeEach(() => {
   behaviour.explode = false
   behaviour.loadFailures = 0
   behaviour.file = null
+  behaviour.lite = null
   errors = vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
@@ -156,6 +160,19 @@ describe('흐름도 창의 자리', () => {
     useFlowDialog().open(opened, { lite: true })
     await flushPromises()
     expect(toRaw(behaviour.file)).toBe(toRaw(opened))
+    host.unmount()
+  })
+
+  it('요청의 lite를 창에 그대로 넘긴다 — 점검은 true, 보통은 false', async () => {
+    const { host } = await mountHost()
+    useFlowDialog().open(projectFile(), { lite: true })
+    await flushPromises()
+    expect(behaviour.lite, 'inspection request must reach the dialog as lite').toBe(true)
+    useFlowDialog().close()
+    await flushPromises()
+    useFlowDialog().open(projectFile())
+    await flushPromises()
+    expect(behaviour.lite, 'normal request must reach the dialog as not lite').toBe(false)
     host.unmount()
   })
 

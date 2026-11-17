@@ -6,8 +6,10 @@
  * (`ml/plan.ts`)가 필요하다. 그래서 이 모듈은 **그림이 보일 때 지연해서
  * 싣는다** — 흐름도 창과 대시보드 카드가 `import()`로 부른다.
  *
- * **계획을 새로 세우지 않는다.** 표는 화면들이 나눠 쓰는 계획 캐시(`tabularPlanOf`)를 읽는다 — 학습 뒤에도
- * 같은 수의 출처가 둘이 되지 않고, 이미 선 계획이면 `planRun`이 다시 안 돈다. 이미지는 계획 없이 센다
+ * **계획을 따로 두지 않는다.** 표는 화면들이 나눠 쓰는 계획 캐시(`tabularPlanOf`)를 거친다 — 캐시에 없으면
+ * 그때 한 번 세워 넣고(그래서 열면 계획이 선다), 이미 있으면 `planRun`이 다시 안 돈다. 학습 뒤에도 같은 수의
+ * 출처가 둘이 되지 않는다. 무는 검사: `tests/flow-counts.spec.ts`의 "같은 파일로 두 번 부르면 planRun은 한 번만
+ * 돈다". 이미지는 계획 없이 센다
  * (사진 수에서 `ml/split.ts`와 `ml/sample.ts`의 규칙으로).
  *
  * **칸마다 비어 있을 수 있다.** 행 수는 계획이 섰을 때만 채우고, 계획이 `pending`·`error`이면 `null`로 둔다 —
@@ -52,7 +54,10 @@ export interface FlowCounts {
   readonly notDrawn: number | null
   /** 학습에 들어가는 특성 수. 사진은 특성이 없어 `null`이다. */
   readonly featureCount: number | null
-  /** 전처리 자리의 모양. 표는 계획과 무관하게 정해지고, 이미지는 늘 백본이다. */
+  /**
+   * 전처리 자리의 모양. 표는 계획이 서지 않아도 구한다(계획이 섰으면 계획이 본 열 종류로, 아니면 파일 전체의 열
+   * 종류로 — `tests/flow-counts.spec.ts`의 "표 · 계획이 안 선 경우"가 문다). 이미지는 늘 백본이다.
+   */
   readonly prep: FlowPrep
   /** 별도 테스트 데이터면 그 파일의 수. 아니면 `null`. */
   readonly testFile: FlowTestFileCounts | null
@@ -90,8 +95,9 @@ function tabularShape(
     features: data.features,
     preprocessing: data.preprocessing,
   })
-  // 학습에 드는 특성만 넘긴다(`fitsAnyBasis`의 머리말) — `usableFeatures`와 같은 판정이다. 값이 전부 빈 열처럼
-  // 학습이 빼는 열이 남아 있으면 구할 값이 없는데도 기준 화살표가 선다.
+  // 학습에 드는 특성만 넘긴다(`fitsAnyBasis`의 머리말) — `usableFeatures`와 같은 판정이다. 결측을 그대로 두는데
+  // 결측이 있는 수치 열처럼 학습이 빼는 열이 남아 있으면 구할 값이 없는데도 기준 화살표가 선다. 무는 검사:
+  // `tests/flow-counts.spec.ts`의 "기준 화살표는 학습에 드는 특성만으로 판정한다".
   const features = plan.columns
     .filter(
       (column) =>

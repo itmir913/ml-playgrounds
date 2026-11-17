@@ -131,6 +131,9 @@ describe('분할 비율', () => {
   it('테스트 몫에서 두 백분율을 낸다', () => {
     expect(splitPercents(0.2)).toEqual({ train: 80, test: 20 })
     expect(splitPercents(0.25)).toEqual({ train: 75, test: 25 })
+    // 부동소수의 꼬리(0.29 * 100 = 28.999999999999996)를 내림하면 한 칸 모자란다 — 반올림이다.
+    expect(splitPercents(0.29)).toEqual({ train: 71, test: 29 })
+    expect(splitPercents(0.57)).toEqual({ train: 43, test: 57 })
   })
 
   it('반올림해도 합이 백이다', () => {

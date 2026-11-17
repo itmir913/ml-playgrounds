@@ -2,7 +2,7 @@
  * 프로젝트 흐름도가 **보일 때** 수를 구해 온다 (`architecture.md` §8.22, `ml/flow-counts.ts`).
  *
  * **그림이 보이기 전에는 계획 코드를 싣지 않는다.** `ml/flow-counts`는 계획 캐시와 전처리 코드를 끌고 오므로
- * 첫 화면의 꾸러미에 정적으로 실리면 안 된다 — 여기서만 `import()`로 부른다. 그리고 **윤곽을 먼저 그린 뒤**
+ * 첫 화면 번들에 정적으로 실리면 안 된다 — 여기서만 `import()`로 부른다. 그리고 **윤곽을 먼저 그린 뒤**
  * 다음 틱에 구한다: 창이 열리는 순간 계획이 돌면 창이 뜨는 것까지 늦어진다.
  *
  * 구하지 못하면(데이터가 없다, 계획이 안 선다) 수를 비워 둔다 — 그림은 설정 비율의 윤곽이다. 숫자를 지어내지
@@ -20,8 +20,12 @@ export interface FlowCountsState {
   readonly bars: ShallowRef<FlowBarValues | null>
 }
 
-/** 한 번 양보해 윤곽이 먼저 화면에 서게 한다. */
-function afterPaint(): Promise<void> {
+/**
+ * 다음 작업(task)까지 한 번 양보한다. 창을 세우는 렌더가 먼저 돌고 계산은 그 뒤에 도는 순서만 보장한다 —
+ * `setTimeout(0)`이라 그림이 실제로 그려진 뒤(paint)임을 보장하지는 않는다. 무는 검사: `tests/use-flow-counts.spec.ts`가
+ * 수 모듈이 돌아오는 때를 쥐고 낡은 회차와 실패를 본다.
+ */
+function nextTask(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
@@ -50,7 +54,7 @@ export function useFlowCounts(
       }
       try {
         const module = await import('@/ml/flow-counts')
-        await afterPaint()
+        await nextTask()
         if (mine !== round) return
         const found = light ? module.flowCountsLite(target) : await module.flowCountsOf(target)
         if (mine !== round) return

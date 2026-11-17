@@ -25,7 +25,7 @@ import {
   type FlowLayoutInput,
   type Rect,
 } from '../src/ml/flow-layout'
-import { FLOW_CASES, modelOf, withTask } from './fixtures/flow-cases'
+import { FLOW_CASES, modelOf, withRuns, withTask } from './fixtures/flow-cases'
 import {
   projectFile,
   projectFileWithPredictDataset,
@@ -182,6 +182,28 @@ describe('시안(v6, flow34)의 좌표', () => {
     // 분할 글자 줄과 두 조각 이름이 없다 — 나눈 것이 아니다.
     expect(found.splitTextY).toBeNull()
     expect(found.captions.nodes).toEqual(['train'])
+  })
+
+  it('별도 테스트 파일의 막대는 회색 몫만큼 회색 조각이 파란 조각 밑에 깔린다', () => {
+    // 무는 대상: `ml/flow-layout.ts`의 별도 테스트 데이터 카드 막대(`test:gray`) — 회색 조각을 안 그리거나 폭을 잘못 나누면 운다.
+    const model = modelOf(projectFileWithTestDataset())
+    const found = layout(model, { bars: { ...KNOWN, testFile: { usable: 30, gray: 10 } } })
+    const gray = found.pieces.find((entry) => entry.segment === 'test:gray')
+    const blue = found.pieces.find((entry) => entry.segment === 'test:bar')!
+    expect(gray, 'gray piece of the test file bar').toBeDefined()
+    expect(gray?.look).toBe('gray')
+    expect(blue.look).toBe('solid')
+    // 292 안에서 30 : 10이다.
+    expect(r1(blue.rect.w)).toBe(r1((G.innerW * 30) / 40))
+    expect(r1((gray?.rect.w ?? 0) - G.grayTuck)).toBe(r1((G.innerW * 10) / 40))
+    // 회색은 파란 조각 밑으로 들어간다.
+    expect(r1(gray?.rect.x ?? 0)).toBe(r1(blue.rect.x + blue.rect.w - G.grayTuck))
+    // 회색 몫이 0이면 조각이 없고, 수를 모르면 윤곽이다.
+    const clean = layout(model, { bars: { ...KNOWN, testFile: { usable: 40, gray: 0 } } })
+    expect(clean.pieces.some((entry) => entry.segment === 'test:gray')).toBe(false)
+    const unknown = layout(model, { bars: null })
+    expect(unknown.pieces.some((entry) => entry.segment === 'test:gray')).toBe(false)
+    expect(unknown.pieces.find((entry) => entry.segment === 'test:bar')?.look).toBe('outline')
   })
 
   it('군집화면 테스트 줄이 없고 결과 상자는 정해진 높이에 선다', () => {
@@ -455,6 +477,15 @@ describe('모델에 없는 것은 그리지 않는다', () => {
     const none = layoutOf(modelOf(withTask(projectFile(), undefined), 'preprocess')!, input())
     // 유형 미정: 학습 전이라 p3 쪽 갈래는 윤곽이지만 p2 쪽은 진하다 — 하나라도 진하면 실선이다.
     expect(none.trunk?.pending).toBe(false)
+  })
+
+  it('전처리만 끝낸 상태에서는 갈래가 하나는 진하고 하나는 윤곽이라 줄기는 실선이다', () => {
+    // 실행이 없으면 새 데이터 쪽 갈래(p1>p3)는 윤곽이고 테스트 쪽 갈래(p1>p2)는 진하다. 줄기 `pending`을 `every`가 아니라
+    // `some`으로 판정하면 이 상태에서 줄기가 점선이 된다 — 무는 대상: `ml/flow-layout.ts`의 `trunk`.
+    const model = modelOf(withRuns(projectFile(), []), 'preprocess')!
+    const states = model.edges.filter((edge) => edge.flow === 'basis').map((edge) => edge.state)
+    expect(states.sort(), 'one branch solid and one outlined').toEqual(['done', 'pending'])
+    expect(layoutOf(model, input()).trunk?.pending).toBe(false)
   })
 })
 

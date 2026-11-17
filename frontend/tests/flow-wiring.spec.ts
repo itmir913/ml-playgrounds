@@ -4,7 +4,7 @@
  *
  * 그림 자체는 `flow-diagram.spec.ts`가 본다. 여기서 보는 것은 **연결**이다 — 카드가 받은 폭에서 그림과
  * 열기 단추를 가르는가, 단추가 데이터가 없을 때 이유와 함께 잠기는가, 창이 앱에 하나인가, 그리고 **그림이
- * 첫 화면의 꾸러미에 계획 코드를 싣지 않는가**(소스를 읽는다 — 번들 크기는 빌드가 아니라 임포트가 정한다).
+ * 첫 화면 번들에 계획 코드를 싣지 않는가**(소스를 읽는다 — 번들 크기는 빌드가 아니라 임포트가 정한다).
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -234,7 +234,7 @@ function sourcesIn(path: string): string[] {
 
 /**
  * 정적으로 들이는 모듈(`import type`과 동적 `import()`는 아니다). **재수출(`export … from`)과 부수효과 임포트
- * (`import '…'`)도 꾸러미에 싣는다** — 셋을 다 센다.
+ * (`import '…'`)도 첫 화면 번들에 싣는다** — 셋을 다 센다.
  */
 function staticImports(source: string): string[] {
   const patterns = [
@@ -255,7 +255,7 @@ function code(path: string): string {
 
 const FLOW_DIR = join(SRC, 'components', 'flow')
 
-/** 흐름도 코드와 그것을 다는 자리들. 첫 화면의 꾸러미에 실리는 쪽이다. */
+/** 흐름도 코드와 그것을 다는 자리들. 첫 화면 번들에 실리는 쪽이다. */
 const EAGER = [
   ...sourcesIn(FLOW_DIR),
   join(SRC, 'components', 'FlowButton.vue'),
@@ -268,7 +268,7 @@ const EAGER = [
   join(SRC, 'App.vue'),
 ].filter((path) => !path.endsWith('FlowDialog.vue') && !path.endsWith('FlowCanvas.vue'))
 
-describe('첫 화면의 꾸러미에 계획 코드가 안 실린다', () => {
+describe('첫 화면 번들에 계획 코드가 안 실린다', () => {
   const HEAVY = [
     '@/ml/flow-counts',
     '@/ml/plan',
@@ -319,7 +319,7 @@ describe('첫 화면의 꾸러미에 계획 코드가 안 실린다', () => {
 })
 
 /**
- * 정적 임포트를 소스 파일로 푼다 — `@/`와 상대 경로만. 바깥 꾸러미(`vue` 따위)는 `null`이다.
+ * 정적 임포트를 소스 파일로 푼다 — `@/`와 상대 경로만. 바깥 패키지(`vue` 따위)는 `null`이다.
  */
 function resolveImport(from: string, spec: string): string | null {
   const base = spec.startsWith('@/')
@@ -358,7 +358,7 @@ function chainOf(seen: Map<string, string | null>, path: string): string {
 }
 
 /**
- * **바로 들이지 않아도 건너서 들이면 같다** — 대시보드·도구 막대에서 닿는 `ml/flow-*.ts`·`project/facts.ts`가
+ * **바로 들이지 않아도 건너서 들이면 같다** — 대시보드·툴바에서 닿는 `ml/flow-*.ts`·`project/facts.ts`가
  * 계획 코드를 들이면 첫 화면이 그것을 싣는다. 그래서 정적 임포트를 끝까지 따라간다.
  *
  * 점검 화면(`InspectView.vue`)은 뿌리가 아니다 — 제 라우트 청크이고, 실험의 재현을 보이므로 계획 코드를 싣는
