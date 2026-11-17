@@ -4,6 +4,13 @@
 
 > **상태 한 줄과, 제목이 물음일 때만 결론 한 줄을 둔다.** 경위는 같은 제목 아래 `docs/cases/open-decisions.md`에 있다.
 
+### 121. 점검 화면이 마감 시각으로 제출물을 가르는가 — **가른다. 판정은 파일의 수정한 날짜로 하고, 마감은 이 화면에서만 기억한다 (2026-11-17, 코드 소유자)**
+**[결정]** 구현을 마쳤다. 경위: `docs/cases/open-decisions.md`의 같은 제목. 판정은 `project/deadline.ts`의 `deadlineVerdict` 하나다.
+마감은 입력한 **그 분까지 이내**이고(23:59면 23:59:59.999까지), `manifest.updatedAt`을 시점끼리 견준다. 마감은 메모리에만 있어
+명렬을 갈아 끼워도 남고 브라우저를 새로 열면 사라진다. 열과 요약 카드의 강조는 마감을 정했을 때만 서고, 경과는 `danger` 색이다.
+열은 수정한 날짜로 정렬된다. 낱말 `마감`은 코드 소유자가 정한 것이라 `docs/copy.md` §2 닫힌 목록의 예외다(`docs/terms.md`).
+무는 검사: `deadline.spec.ts`·`roster.spec.ts`·`inspect-deadline.spec.ts`.
+
 ### 119. 화면의 세는 수를 어디서 포맷하는가 — **메시지 컴파일러·useFormat·차트 옵션의 세 경계에서, 자리표시자는 닫힌 목록으로 가른다 (2026-10-21, 코드 소유자, #47)**
 **[결정]** 구현을 마쳤다(#47). 경위: `docs/cases/open-decisions.md`의 같은 제목. 문장 안은 `src/i18n-numbers.ts`(감싼 컴파일러와
 자리표시자 등록부), 문장 밖은 `useFormat().count`, 차트는 `data/chart-locale.ts`. 학생 데이터 원본 값과 하이퍼파라미터 범위의 값은
