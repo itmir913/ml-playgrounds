@@ -51,8 +51,11 @@ function open(event: MouseEvent): void {
     <span :class="props.compact ? 'max-md:hidden' : ''">{{ t('flow.title') }}</span>
   </AppButton>
 
-  <!-- 잠겼을 때: 보이게 두되 누를 수 없다고 알리고, 누르면 이유가 선다. -->
-  <AppPopover v-else align="right">
+  <!--
+    잠겼을 때: 보이게 두되 누를 수 없다고 알리고, 누르면 이유가 선다. `w-fit`이 없으면 블록 자리(점검)에서
+    팝오버가 칸을 다 채워 열린 단추와 너비가 갈린다.
+  -->
+  <AppPopover v-else align="right" class="w-fit">
     <template #trigger>
       <AppPlainButton
         announce
