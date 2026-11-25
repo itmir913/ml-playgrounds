@@ -924,15 +924,11 @@ function reasonOf(code: string): string {
         <DeadlineSetter :deadline="deadline" @set="setDeadline" />
 
         <template #end>
-          <AppButton variant="secondary" :lock="busyLock" :action="downloadGrading">
-            <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
-            {{
-              grading
-                ? t('inspect.bundling', { done: bundled, total: progress.total })
-                : t('inspect.grading')
-            }}
+          <!-- 맨 앞이라 맨 끝의 채점 단추 자리에 안 선다 — 두 번 눌러도 안 끊긴다. -->
+          <AppButton v-if="grading" variant="secondary" @click="grading.cancel()">
+            {{ t('train.stop') }}
           </AppButton>
-          <AppButton :lock="busyLock" :action="downloadPortfolios">
+          <AppButton variant="secondary" :lock="busyLock" :action="downloadPortfolios">
             <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
             {{
               busy && !grading
@@ -940,9 +936,13 @@ function reasonOf(code: string): string {
                 : t('inspect.bundle')
             }}
           </AppButton>
-          <!-- 맨 끝이라 방금 누른 채점 단추의 자리에 안 선다 — 두 번 눌러도 안 끊긴다. -->
-          <AppButton v-if="grading" variant="secondary" @click="grading.cancel()">
-            {{ t('train.stop') }}
+          <AppButton :lock="busyLock" :action="downloadGrading">
+            <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
+            {{
+              grading
+                ? t('inspect.bundling', { done: bundled, total: progress.total })
+                : t('inspect.grading')
+            }}
           </AppButton>
         </template>
       </StepActionBar>

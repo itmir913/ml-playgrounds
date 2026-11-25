@@ -96,7 +96,7 @@
       "formula": "Do not allow formulas or external connections when opening the CSV files in Excel.",
       "privacy": "This data contains student IDs and names. Check your school's privacy rules before giving it to an external AI service."
     },
-    "bundle": "Download all portfolios",
+    "bundle": "Download portfolios",
     "bundling": "Reading files ({done}/{total})",
     "bundleName": "portfolios.zip",
     "model": "Model",
