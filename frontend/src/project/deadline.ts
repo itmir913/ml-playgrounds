@@ -68,5 +68,16 @@ export function deadlineVerdict(
   if (deadline === null) return null
   const at = Date.parse(updatedAt)
   if (Number.isNaN(at)) return null
-  return at >= deadline + MINUTE_MS ? 'late' : 'onTime'
+  return at >= deadlineEnd(deadline) ? 'late' : 'onTime'
+}
+
+/** 이내의 끝. **이 시점부터 경과다** — 판정을 다시 계산하는 쪽이 같은 경계를 쓰게 한다. */
+export function deadlineEnd(deadline: number): number {
+  return deadline + MINUTE_MS
+}
+
+/** 마감을 몇 분 넘겼는가. **경과일 때만 값이 있고 늘 1 이상이다** — 판정은 `deadlineVerdict`가 한다. */
+export function minutesLate(updatedAt: string, deadline: number | null): number | null {
+  if (deadline === null || deadlineVerdict(updatedAt, deadline) !== 'late') return null
+  return Math.floor((Date.parse(updatedAt) - deadline) / MINUTE_MS)
 }

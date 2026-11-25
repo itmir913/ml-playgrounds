@@ -728,8 +728,8 @@
     },
     {
       "file": "src/project/deadline.ts",
-      "find": "  return at >= deadline + MINUTE_MS ? 'late' : 'onTime'",
-      "replace": "  return at > deadline + MINUTE_MS ? 'late' : 'onTime'",
+      "find": "  return at >= deadlineEnd(deadline) ? 'late' : 'onTime'",
+      "replace": "  return at > deadlineEnd(deadline) ? 'late' : 'onTime'",
       "expect": "cries",
       "loses": "마감 다음 분 0초에 저장한 파일이 이내로 판정된다 (open-decisions.md 121의 \"그 분까지 이내\")",
       "expectSpecs": ["tests/deadline.spec.ts"]

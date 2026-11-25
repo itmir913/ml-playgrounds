@@ -191,10 +191,13 @@ function fitFolder(base: string, tail: string): string {
  * zip 안에서는 둘이어도 풀면 하나가 된다. 대문자로 견주는 것은 NTFS가 대문자 표로 견주기 때문이다(`σ`·`ς`가 한 폴더가 된다는
  * 것은 추론이고 탐색기로 재지 않았다). 무는 검사: `portfolio-bundle.spec.ts`의 *"폴더 이름은 서로 다르다"* 묶음.
  */
-export function folderNames(sources: readonly FolderSource[]): string[] {
+export function folderNames(
+  sources: readonly FolderSource[],
+  reserved: readonly string[] = [BUNDLE_INDEX],
+): string[] {
   const bases = sources.map((source, order) => folderFor(source, order + 1))
-  const taken = new Set([BUNDLE_INDEX, ...bases].map((name) => name.toUpperCase()))
-  const seen = new Set([BUNDLE_INDEX.toUpperCase()])
+  const taken = new Set([...reserved, ...bases].map((name) => name.toUpperCase()))
+  const seen = new Set(reserved.map((name) => name.toUpperCase()))
   // **이름마다 다음에 시도할 번호를 기억한다** (R43-1 감사 C-1의 이웃) — 매번 2부터 세면 같은 이름 N개가 N²이다.
   // 열쇠는 대문자다: 대소문자만 다른 두 이름은 같은 번호 줄을 나눠 쓴다.
   const nextIndex = new Map<string, number>()
@@ -338,6 +341,11 @@ export function bundleOf(
   // 16비트만 적는다 — 넘은 채로 내보내면 푸는 쪽이 제출물을 말없이 빠뜨린다. 던지면 점검 화면이
   // 알린다(`InspectView.vue`의 `downloadPortfolios`). `index.csv`도 엔트리 하나로 센다.
   // 무는 검사: `portfolio-bundle.spec.ts`의 *"묶음 엔트리 수"*.
+  return zipBundle(files)
+}
+
+/** 엔트리들을 묶음 하나로. 포트폴리오 묶음과 채점 자료가 함께 쓴다. */
+export function zipBundle(files: Readonly<Record<string, Uint8Array>>): Blob {
   if (!fitsInArchive(Object.keys(files).length)) {
     throw new ClientError('PORTFOLIO_BUNDLE_TOO_MANY_ENTRIES')
   }
@@ -348,6 +356,6 @@ export function bundleOf(
   // webp·jpeg라 줄지 않고, 누르면 메인 스레드가 그만큼 멈춘다 — 30명 × 5MB에 7,717ms였다(R43-1 감사 B-1).
   // `.mlpx`가 같은 이유로 누르지 않는다(결정 68). 무는 검사: `portfolio-bundle.spec.ts`의
   // *"묶음은 아무것도 누르지 않는다"*.
-  const zipped = zipSync(files, { level: 0, mtime: zipModifiedTime() })
+  const zipped = zipSync({ ...files }, { level: 0, mtime: zipModifiedTime() })
   return new Blob([zipped as unknown as BlobPart], { type: 'application/zip' })
 }

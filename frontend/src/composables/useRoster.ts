@@ -84,7 +84,19 @@ export interface Roster {
    * 고르면 그 묶음은 이미 남의 것이라 **절반짜리 zip이 내려가면 안 된다** — 부르는 쪽이
    * 그 사실을 알 길이 없으면 알 수가 없다.
    */
-  collect: (take: (item: RosterItem, read: ReadResult | null) => void) => Promise<boolean>
+  collect: (take: Take, options?: CollectOptions) => Promise<boolean>
+}
+
+/**
+ * 읽은 것을 받는 손. **약속을 돌려주면 그것이 끝날 때까지 다음 파일을 안 푼다** — 기다리지 않으면
+ * 손이 쥔 원본이 쌓여 "동시에 푸는 파일은 하나"가 깨진다. 무는 검사: `roster-queue.spec.ts`의
+ * *"손이 끝날 때까지 다음 파일을 안 푼다"*.
+ */
+export type Take = (item: RosterItem, read: ReadResult | null) => unknown
+
+export interface CollectOptions {
+  /** 참이면 아직 안 읽은 줄을 읽지 않고 넘긴다. [멈추기]가 쓴다. */
+  readonly cancelled?: () => boolean
 }
 
 /** 큐에 선 일감. 훑기는 메타만, 고른 것은 통째로. */
@@ -99,7 +111,9 @@ interface Job {
    * 교사가 누르면 그 줄이 맨 앞으로 오는데, **그때 기다리던 손을 버리면 그 약속이 영영
    * 안 풀린다** — 묶기가 안 끝나 단추가 잠긴 채 남고 그 학생의 글은 zip에서 빠진다.
    */
-  readonly hands: readonly ((read: ReadResult | null) => void)[]
+  readonly hands: readonly ((read: ReadResult | null) => void | Promise<void>)[]
+  /** 읽기 직전에 참이면 안 읽고 손만 놓는다. **교사가 누른 줄에는 없다** — 그 줄은 읽어야 한다. */
+  readonly skip?: () => boolean
   /** 읽은 것을 화면에 앉히는가. **교사가 고른 줄만 참이다.** */
   readonly seat: boolean
 }
@@ -154,10 +168,14 @@ export function useRoster(): Roster {
    * **큐에서 빠지는 경로마다 화면이 잠긴다** — 옛 명렬을 통째로 버릴 때가 그랬다.
    */
   function release(job: Job): void {
-    for (const hand of job.hands) hand(null)
+    for (const hand of job.hands) void hand(null)
   }
 
   async function run(job: Job): Promise<void> {
+    if (job.skip?.()) {
+      release(job)
+      return
+    }
     const mine = held
     const done = await readOne(job)
     // **내가 든 명렬이 아직 지금 명렬일 때만 앉힌다.**
@@ -167,10 +185,11 @@ export function useRoster(): Roster {
     }
 
     put(job.item.label, done.summary)
-    for (const hand of job.hands) hand(done.read ?? null)
+    // **앉히기가 먼저다** — 손을 기다리는 동안 교사가 누른 줄이 "읽는 중"에 서 있을 이유가 없다.
     if (job.seat && job.item.label === wanted && done.read) {
       opened.value = { item: job.item, read: done.read }
     }
+    for (const hand of job.hands) await hand(done.read ?? null)
   }
 
   /**
@@ -266,23 +285,29 @@ export function useRoster(): Roster {
   }
 
   /** 명렬을 한 줄씩 통째로 읽는다. **큐 뒤에 붙는다** — 교사가 고른 줄이 먼저다. */
-  function collect(take: (item: RosterItem, read: ReadResult | null) => void): Promise<boolean> {
+  function collect(take: Take, options: CollectOptions = {}): Promise<boolean> {
     const mine = held
+    const { cancelled } = options
     const waits = items.value.map(
       (item) =>
-        new Promise<boolean>((resolve) => {
+        new Promise<boolean>((resolve, reject) => {
           pending.push({
             item,
             full: true,
             seat: false,
             hands: [
-              (read) => {
-                // 명렬이 갈렸으면 그 묶음은 이미 남의 것이다.
-                const ours = mine === held
-                if (ours) take(item, read)
-                resolve(ours)
+              // **던져도 펌프는 안 선다** — 거절은 묶는 쪽의 약속으로 가고 큐는 다음 줄로 간다.
+              async (read) => {
+                try {
+                  // 명렬이 갈렸으면 그 묶음은 이미 남의 것이다. 손이 도는 사이에 갈려도 같다.
+                  if (mine === held && cancelled?.() !== true) await take(item, read)
+                  resolve(mine === held)
+                } catch (error) {
+                  reject(error as Error)
+                }
               },
             ],
+            ...(cancelled ? { skip: cancelled } : {}),
           })
         }),
     )
@@ -305,6 +330,9 @@ async function readOne(job: Job): Promise<{ summary: RosterSummary; read?: ReadR
       summary: {
         state: 'unreadable',
         code: isClientError(error) ? error.code : ('PROJECT_FILE_INVALID' as ClientErrorCode),
+        ...(isClientError(error) && Object.keys(error.params).length > 0
+          ? { params: error.params }
+          : {}),
       },
     }
   }

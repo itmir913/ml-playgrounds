@@ -103,6 +103,58 @@ describe('묶는 동안 명렬을 만져도 큐가 안 잠긴다', () => {
     expect(taken.sort()).toEqual(['a.mlpx', 'b.mlpx', 'c.mlpx'])
   })
 
+  /** 안 기다리면 손이 쥔 원본이 쌓인다 (open-decisions.md 122). */
+  it('손이 끝날 때까지 다음 파일을 안 푼다', async () => {
+    const { roster } = await ready(['a.mlpx', 'b.mlpx'])
+    const hands: (() => void)[] = []
+    const bundle = roster.collect(() => new Promise<void>((resolve) => hands.push(resolve)))
+    await flushPromises()
+    await drain()
+    expect(hands, 'the first hand is still holding').toHaveLength(1)
+    expect(reads, 'nothing else is being read').toHaveLength(0)
+
+    hands[0]?.()
+    await flushPromises()
+    await drain()
+    expect(hands).toHaveLength(2)
+    hands[1]?.()
+    expect(await bundle).toBe(true)
+  })
+
+  it('손이 던지면 묶기는 거절되고 큐는 다음 줄을 읽는다', async () => {
+    const { roster, items } = await ready(['a.mlpx', 'b.mlpx'])
+    const bundle = roster.collect(() => {
+      throw new Error('hand')
+    })
+    const refused = expect(bundle).rejects.toThrow('hand')
+    await flushPromises()
+    await drain()
+    await refused
+
+    void roster.open(items[1] as RosterItem)
+    await flushPromises()
+    await drain()
+    expect(roster.opened.value?.item.label).toBe('b.mlpx')
+  })
+
+  it('멈추면 남은 파일을 안 읽고 교사가 누른 줄만 읽는다', async () => {
+    const { roster, items } = await ready(['a.mlpx', 'b.mlpx', 'c.mlpx'])
+    let stopped = false
+    const bundle = roster.collect(() => undefined, { cancelled: () => stopped })
+    await flushPromises()
+    stopped = true
+    void roster.open(items[2] as RosterItem)
+    const first = reads.shift()
+    first?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(reads.map((one) => one.label)).toEqual(['c.mlpx'])
+    reads.shift()?.settle(new Uint8Array([1]))
+    await flushPromises()
+    expect(reads, 'b.mlpx must never be read').toEqual([])
+    expect(await settled(bundle)).toBe(true)
+    expect(roster.opened.value?.item.label).toBe('c.mlpx')
+  })
+
   it('굽는 도중에 다른 폴더를 골라도 묶기가 끝난다', async () => {
     const { roster } = await ready(['a.mlpx', 'b.mlpx'])
     const bundle = roster.collect(() => {})

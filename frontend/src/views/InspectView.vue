@@ -18,7 +18,7 @@
  * 붙을 자리도 열이다.
  */
 
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AppBadge from '@/components/AppBadge.vue'
@@ -31,15 +31,19 @@ import ProjectSummary from '@/components/ProjectSummary.vue'
 import StepActionBar from '@/components/StepActionBar.vue'
 import StepHeader from '@/components/StepHeader.vue'
 import { useRoster } from '@/composables/useRoster'
-import { useWork } from '@/composables/useWork'
-import { errorMessageKey, type ClientErrorCode } from '@/errors'
+import { useWork, type Job } from '@/composables/useWork'
+import { summarizeTable } from '@/data/summary/client'
+import { spawnSummaryWorker } from '@/data/summary/spawn'
+import { errorMessageKey, failureDetail, isClientError, type ClientErrorCode } from '@/errors'
 import { ACTION_ICONS, STEP_ICONS } from '@/icons'
 import { experimentPreprocessor } from '@/ml/preprocess'
 import { experimentOrder } from '@/ml/results'
 import { readDataset, readTestDataset } from '@/project/dataset'
-import { MLPX_ACCEPT } from '@/project/format'
+import { MLPX_ACCEPT, type ProjectFile } from '@/project/format'
 import { deadlineVerdict, type DeadlineVerdict } from '@/project/deadline'
 import { downloadBlob } from '@/project/download'
+import { gradingBundleOf, type GradingEntry } from '@/project/grading-bundle'
+import { contentOf, tablesOf, type RecordedTables } from '@/project/grading-record'
 import { bundleOf, type BundleEntry } from '@/project/portfolio-bundle'
 import {
   bundleStudentOf,
@@ -80,6 +84,9 @@ onBeforeUnmount(() => {
 
 /** 묶는 동안 몇 줄까지 읽었는가. 서른 개면 그 수가 교사가 기다리는 크기다. */
 const bundled = ref(0)
+
+/** 도는 채점 자료 내보내기. **[멈추기]와 명렬 교체가 이 일만 끊는다.** 없으면 포트폴리오 묶음이 도는 것이다. */
+const grading = shallowRef<Job | null>(null)
 
 /** 고른 것이 서는 자리. **누르면 여기로 굴러온다** (2026-09-18, 사용자). */
 const detailEl = ref<HTMLElement | null>(null)
@@ -195,6 +202,8 @@ function onDrop(event: DragEvent): void {
 
 /** 항목이 하나뿐이면 자동으로 고른다. 경로는 같고 누르는 손이 한 번 준다. */
 watch(roster.items, (items) => {
+  // 남의 명렬이 된 요약 워커를 끊는다 — 묶음은 `collect`가 거짓으로 답해 안 내려간다.
+  grading.value?.cancel()
   opened.value = null
   const only = items.length === 1 ? items[0] : undefined
   if (only) select(only)
@@ -712,6 +721,105 @@ async function downloadPortfolios(): Promise<void> {
   }
 }
 
+/**
+ * 제출물 하나의 표들을 워커에서 요약한다. **한 표가 실패해도 나머지는 낸다** — 그 자리에 사유를 적는다.
+ * 정본은 여기서 파싱하지 않는다(`project/grading-record.ts`).
+ */
+async function summarizeTables(project: ProjectFile, job: Job): Promise<RecordedTables> {
+  const tables: RecordedTables = {}
+  for (const { role, body, hasHeader } of tablesOf(project)) {
+    if (job.cancelled() || !alive()) break
+    try {
+      const handle = summarizeTable({ bytes: body.bytes, hasHeader }, spawnSummaryWorker)
+      job.hold(handle)
+      tables[role] = { summary: await handle.result, failure: null }
+    } catch (error) {
+      tables[role] = {
+        summary: null,
+        failure: isClientError(error)
+          ? { code: error.code, params: error.params }
+          : { code: 'UNEXPECTED_ERROR', params: failureDetail(error) },
+      }
+    }
+  }
+  return tables
+}
+
+/**
+ * **명렬의 내용을 채점 자료로 묶어 내려받는다** (§8.21, open-decisions.md 122).
+ *
+ * 포트폴리오 묶음과 같은 큐를 쓰고, 손이 표 요약을 기다리는 동안 다음 파일을 안 푼다. 누른 순간의 정렬·고침·마감을
+ * 떠 둔다. 멈추거나 명렬이 갈리거나 떠나면 안 내려받는다. 무는 검사: `inspect-grading.spec.ts`.
+ */
+async function downloadGrading(): Promise<void> {
+  if (busy.value || roster.items.value.length === 0) return
+  const job = start()
+  grading.value = job
+  bundled.value = 0
+  const items = roster.items.value
+  const order = sortRoster(items, roster.summaries.value, sort.value, descending.value)
+  const edits = new Map(roster.edits.value)
+  const due = deadline.value
+  const taken = new Map<string, GradingEntry>()
+  const stopped = () => job.cancelled() || !alive()
+  try {
+    const whole = await roster.collect(
+      async (item, read) => {
+        bundled.value += 1
+        const { label } = item
+        const fileSizeBytes = item.file.size
+        if (!read) {
+          const summary = roster.summaries.value.get(label)
+          taken.set(label, {
+            label,
+            fileSizeBytes,
+            failure:
+              summary?.state === 'unreadable'
+                ? { code: summary.code, ...(summary.params ? { params: summary.params } : {}) }
+                : { code: 'PROJECT_FILE_INVALID' },
+          })
+          return
+        }
+        const tables = await summarizeTables(read.project, job)
+        if (stopped()) return
+        const { document, attachments } = read.project
+        taken.set(label, {
+          label,
+          fileSizeBytes,
+          ...bundleStudentOf(document, edits.get(label)),
+          file: { document, attachments },
+          content: contentOf(read, tables),
+        })
+      },
+      { cancelled: stopped },
+    )
+    if (!whole || stopped()) return
+    // 다 읽은 뒤의 요약으로 짝을 짓는다 — 누른 순간에는 아직 안 훑은 줄이 있을 수 있다.
+    const pairs = sameProjectsOf(items, roster.summaries.value).groups
+    const entries = order.flatMap(({ label }) => {
+      const entry = taken.get(label)
+      const pair = pairs.get(label)
+      return entry
+        ? [{ ...entry, ...(pair === undefined ? {} : { sameProject: groupName(pair) }) }]
+        : []
+    })
+    if (!entries.some((entry) => entry.file)) return
+    const blob = gradingBundleOf(entries, {
+      translate: t,
+      locale: locale.value,
+      deadline: due,
+      now: new Date().toISOString(),
+    })
+    downloadBlob(blob, t('inspect.gradingName'))
+  } catch (error) {
+    toasts.pushError(error)
+  } finally {
+    grading.value = null
+    bundled.value = 0
+    job.done()
+  }
+}
+
 /** 못 읽은 줄의 사유 문장. **코드를 화면이 문장으로 바꾼다** (CLAUDE.md §1.4). */
 function reasonOf(code: string): string {
   return t(errorMessageKey(code as ClientErrorCode))
@@ -816,10 +924,21 @@ function reasonOf(code: string): string {
         <DeadlineSetter :deadline="deadline" @set="setDeadline" />
 
         <template #end>
+          <AppButton v-if="grading" variant="secondary" @click="grading.cancel()">
+            {{ t('train.stop') }}
+          </AppButton>
+          <AppButton variant="secondary" :lock="busyLock" :action="downloadGrading">
+            <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
+            {{
+              grading
+                ? t('inspect.bundling', { done: bundled, total: progress.total })
+                : t('inspect.grading')
+            }}
+          </AppButton>
           <AppButton :lock="busyLock" :action="downloadPortfolios">
             <component :is="ACTION_ICONS.exportFile" :size="18" aria-hidden="true" />
             {{
-              busy
+              busy && !grading
                 ? t('inspect.bundling', { done: bundled, total: progress.total })
                 : t('inspect.bundle')
             }}

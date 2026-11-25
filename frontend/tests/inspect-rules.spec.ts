@@ -25,6 +25,8 @@ const INSPECT: readonly string[] = [
   join(SRC, 'composables', 'useRoster.ts'),
   join(SRC, 'project', 'roster.ts'),
   join(SRC, 'project', 'portfolio-bundle.ts'),
+  join(SRC, 'project', 'grading-record.ts'),
+  join(SRC, 'project', 'grading-bundle.ts'),
   // 판이 여럿이 되면 이 디렉터리로 온다. 규칙은 그대로다.
   join(SRC, 'views', 'inspect'),
 ]
@@ -181,17 +183,19 @@ describe('점검 화면은 결과 화면의 부품을 쓴다', () => {
  * 흘려보내면 점검이 파일 배포처가 되고, 그건 교사가 이미 가진 것이다.
  */
 describe('점검이 내보내는 것', () => {
-  const BUNDLE = join(SRC, 'project', 'portfolio-bundle.ts')
+  const BUNDLES = ['portfolio-bundle.ts', 'grading-bundle.ts'].map((name) =>
+    join(SRC, 'project', name),
+  )
 
-  it('묶음은 글과 그 글이 가리키는 사진만 담는다', () => {
-    const source = body(BUNDLE)
+  it.each(BUNDLES)('묶음은 원본 바이트를 담지 않는다 (%s)', (bundle) => {
+    const source = body(bundle)
     // 원본 바이트로 가는 길 셋 — 프로젝트 파일 자체, 정본 표, 정본 사진.
     expect(source).not.toContain('readFileBytes')
     expect(source).not.toContain('.dataset')
     expect(source).not.toContain('.images')
   })
 
-  it('원본을 다시 쓰는 길이 없다', () => {
-    expect(body(BUNDLE)).not.toContain('writeProject')
+  it.each(BUNDLES)('원본을 다시 쓰는 길이 없다 (%s)', (bundle) => {
+    expect(body(bundle)).not.toContain('writeProject')
   })
 })

@@ -10,7 +10,7 @@
  * 서른 개를 미리 돌면 훑어보는 한 바퀴가 성립하지 않는다.
  */
 
-import type { ClientErrorCode } from '../errors'
+import type { ClientErrorCode, ClientErrorParams } from '../errors'
 import { isProjectFileName, withoutProjectExtension } from './format'
 import type { DataType, ProjectDocument } from './schema'
 
@@ -68,6 +68,8 @@ export type RosterSummary =
        * 없는 것으로 읽고, 그것이 이 화면이 가장 하면 안 되는 일이다.
        */
       readonly code: ClientErrorCode | 'PROJECT_FILE_INVALID'
+      /** 사유의 세부. 채점 자료가 싣는다. */
+      readonly params?: ClientErrorParams
     }
 
 /**
